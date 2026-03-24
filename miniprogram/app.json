@@ -1,0 +1,44 @@
+{
+  "pages": [
+    "pages/index/index",
+    "pages/assets/assets",
+    "pages/liabilities/liabilities",
+    "pages/transactions/transactions",
+    "pages/statistics/statistics"
+  ],
+  "window": {
+    "backgroundTextStyle": "dark",
+    "navigationBarBackgroundColor": "#171717",
+    "navigationBarTitleText": "家庭资产负债表",
+    "navigationBarTextStyle": "white"
+  },
+  "tabBar": {
+    "color": "#a3a3a3",
+    "selectedColor": "#3b82f6",
+    "backgroundColor": "#171717",
+    "borderStyle": "black",
+    "list": [
+      {
+        "pagePath": "pages/index/index",
+        "text": "总览"
+      },
+      {
+        "pagePath": "pages/assets/assets",
+        "text": "资产"
+      },
+      {
+        "pagePath": "pages/liabilities/liabilities",
+        "text": "负债"
+      },
+      {
+        "pagePath": "pages/transactions/transactions",
+        "text": "账目"
+      },
+      {
+        "pagePath": "pages/statistics/statistics",
+        "text": "统计"
+      }
+    ]
+  },
+  "sitemapLocation": "sitemap.json"
+}

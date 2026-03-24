@@ -1,120 +1,97 @@
-# System Patterns: Next.js Starter Template
+# System Patterns: 家庭资产负债表
 
 ## Architecture Overview
 
 ```
 src/
-├── app/                    # Next.js App Router
-│   ├── layout.tsx          # Root layout + metadata
-│   ├── page.tsx            # Home page
-│   ├── globals.css         # Tailwind imports + global styles
-│   └── favicon.ico         # Site icon
-└── (expand as needed)
-    ├── components/         # React components (add when needed)
-    ├── lib/                # Utilities and helpers (add when needed)
-    └── db/                 # Database files (add via recipe)
+├── app/                          # Next.js App Router
+│   ├── layout.tsx                # Root layout with Sidebar
+│   ├── page.tsx                  # Dashboard (overview)
+│   ├── globals.css               # Tailwind styles
+│   ├── assets/page.tsx           # Asset management page
+│   ├── liabilities/page.tsx      # Liability management page
+│   ├── transactions/page.tsx     # Transaction list page
+│   ├── reconciliations/page.tsx  # Reconciliation page
+│   ├── statistics/page.tsx       # Statistics & prediction page
+│   └── api/                      # API routes (backend)
+│       ├── categories/route.ts   # CRUD for categories
+│       ├── assets/route.ts       # CRUD for assets
+│       ├── liabilities/route.ts  # CRUD for liabilities
+│       ├── transactions/route.ts # CRUD for transactions
+│       ├── reconciliations/route.ts # Reconciliation logic
+│       └── statistics/
+│           ├── monthly/route.ts  # Monthly stats & snapshots
+│           ├── prediction/route.ts # Cash flow prediction
+│           └── snapshot/route.ts # Dashboard overview data
+├── components/
+│   ├── Sidebar.tsx               # Navigation sidebar
+│   └── Forms.tsx                 # AssetForm, LiabilityForm, TransactionForm
+├── lib/
+│   └── utils.ts                  # Format helpers (money, date, type labels)
+└── db/
+    ├── schema.ts                 # Drizzle schema (6 tables)
+    ├── index.ts                  # Database client
+    ├── migrate.ts                # Migration runner
+    └── migrations/               # Auto-generated SQL migrations
+
+miniprogram/                      # WeChat Mini Program (separate project)
+├── app.js/app.json/app.wxss      # App config & global styles
+├── project.config.json           # WeChat project config
+├── utils/api.js                  # API helper & formatters
+└── pages/
+    ├── index/                    # Dashboard overview
+    ├── assets/                   # Asset management
+    ├── liabilities/              # Liability management
+    ├── transactions/             # Transaction list
+    └── statistics/               # Statistics & prediction
 ```
+
+## Database Schema (6 tables)
+
+| Table | Purpose |
+|-------|---------|
+| `categories` | Income/expense/asset/liability categories with hierarchy |
+| `assets` | Asset records (name, type, value, monthly income, yield) |
+| `liabilities` | Liability records (name, type, principal, rate, payment) |
+| `transactions` | Transaction records (type, amount, principal/interest split) |
+| `reconciliations` | Reconciliation records (expected vs actual, auto-adjustment) |
+| `monthly_snapshots` | Monthly aggregated stats (assets, liabilities, net worth) |
+
+## API Routes
+
+| Route | Methods | Purpose |
+|-------|---------|---------|
+| `/api/categories` | GET, POST, PUT, DELETE | Category CRUD |
+| `/api/assets` | GET, POST, PUT, DELETE | Asset CRUD |
+| `/api/liabilities` | GET, POST, PUT, DELETE | Liability CRUD |
+| `/api/transactions` | GET, POST, PUT, DELETE | Transaction CRUD with auto-updates |
+| `/api/reconciliations` | GET, POST | Reconciliation with auto-entry creation |
+| `/api/statistics/monthly` | GET, POST | Monthly stats & snapshot generation |
+| `/api/statistics/prediction` | GET | Cash flow prediction (6/12/24/36 months) |
+| `/api/statistics/snapshot` | GET | Dashboard overview data |
 
 ## Key Design Patterns
 
-### 1. App Router Pattern
+### Transaction Auto-Updates
+When creating transactions, the API automatically updates related assets/liabilities:
+- `asset_value_change` → Updates asset's `currentValue`
+- `liability_repayment` → Subtracts `principalPart` from liability's `remainingPrincipal`
+- `liability_principal_change` → Adjusts liability's `remainingPrincipal`
 
-Uses Next.js App Router with file-based routing:
-```
-src/app/
-├── page.tsx           # Route: /
-├── about/page.tsx     # Route: /about
-├── blog/
-│   ├── page.tsx       # Route: /blog
-│   └── [slug]/page.tsx # Route: /blog/:slug
-└── api/
-    └── route.ts       # API Route: /api
-```
+### Reconciliation Auto-Adjustment
+When reconciling, if `actualBalance != expectedBalance`, a `reconciliation` type transaction is auto-created to account for the difference.
 
-### 2. Component Organization Pattern (When Expanding)
-
-```
-src/components/
-├── ui/                # Reusable UI components (Button, Card, etc.)
-├── layout/            # Layout components (Header, Footer)
-├── sections/          # Page sections (Hero, Features, etc.)
-└── forms/             # Form components
-```
-
-### 3. Server Components by Default
-
-All components are Server Components unless marked with `"use client"`:
-```tsx
-// Server Component (default) - can fetch data, access DB
-export default function Page() {
-  return <div>Server rendered</div>;
-}
-
-// Client Component - for interactivity
-"use client";
-export default function Counter() {
-  const [count, setCount] = useState(0);
-  return <button onClick={() => setCount(c => c + 1)}>{count}</button>;
-}
-```
-
-### 4. Layout Pattern
-
-Layouts wrap pages and can be nested:
-```tsx
-// src/app/layout.tsx - Root layout
-export default function RootLayout({ children }: { children: React.ReactNode }) {
-  return (
-    <html lang="en">
-      <body>{children}</body>
-    </html>
-  );
-}
-
-// src/app/dashboard/layout.tsx - Nested layout
-export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="flex">
-      <Sidebar />
-      <main>{children}</main>
-    </div>
-  );
-}
-```
+### Cash Flow Prediction
+Predicts N months ahead by:
+1. Calculating monthly income from assets (interest/deposits auto-reinvest)
+2. Calculating monthly payments from liabilities (principal + interest split)
+3. Updating asset values and liability principals each month
+4. Reporting net worth trajectory and cash flow over time
 
 ## Styling Conventions
 
-### Tailwind CSS Usage
-- Utility classes directly on elements
-- Component composition for repeated patterns
-- Responsive: `sm:`, `md:`, `lg:`, `xl:`
-
-### Common Patterns
-```tsx
-// Container
-<div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-
-// Responsive grid
-<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-
-// Flexbox centering
-<div className="flex items-center justify-center">
-```
-
-## File Naming Conventions
-
-- Components: PascalCase (`Button.tsx`, `Header.tsx`)
-- Utilities: camelCase (`utils.ts`, `helpers.ts`)
-- Pages/Routes: lowercase (`page.tsx`, `layout.tsx`)
-- Directories: kebab-case (`api-routes/`) or lowercase (`components/`)
-
-## State Management
-
-For simple needs:
-- `useState` for local component state
-- `useContext` for shared state
-- Server Components for data fetching
-
-For complex needs (add when necessary):
-- Zustand for client state
-- React Query for server state
+- Dark theme: neutral-900/950 backgrounds, neutral-800 borders
+- Green for positive values (assets, income)
+- Red for negative values (liabilities, expenses, losses)
+- Blue for neutral/worth metrics
+- Orange for payment amounts

@@ -1,0 +1,56 @@
+<view class="container">
+  <view wx:if="{{loading}}" class="text-muted" style="text-align:center;padding:100rpx 0;">加载中...</view>
+
+  <block wx:else>
+    <view class="grid-3">
+      <view class="card">
+        <view class="card-title">总资产</view>
+        <view class="card-value text-green">{{formatMoney(overview.totalAssets)}}</view>
+        <view class="text-muted" style="font-size:20rpx;">{{overview.assetCount}} 项</view>
+      </view>
+      <view class="card">
+        <view class="card-title">总负债</view>
+        <view class="card-value text-red">{{formatMoney(overview.totalLiabilities)}}</view>
+        <view class="text-muted" style="font-size:20rpx;">{{overview.liabilityCount}} 项</view>
+      </view>
+      <view class="card">
+        <view class="card-title">净资产</view>
+        <view class="card-value {{overview.netWorth >= 0 ? 'text-blue' : 'text-red'}}">{{formatMoney(overview.netWorth)}}</view>
+        <view class="text-muted" style="font-size:20rpx;">资产-负债</view>
+      </view>
+    </view>
+
+    <view class="card">
+      <view class="card-title">月现金流能力</view>
+      <view class="card-value {{overview.monthlyCashFlow >= 0 ? 'text-green' : 'text-red'}}">{{formatMoney(overview.monthlyCashFlow)}}</view>
+    </view>
+
+    <view class="card">
+      <view class="row-between">
+        <view class="card-title">资产明细</view>
+        <navigator url="/pages/assets/assets" class="text-blue" style="font-size:24rpx;">查看全部</navigator>
+      </view>
+      <view wx:for="{{assets}}" wx:key="id" class="list-item">
+        <view>
+          <view class="text-white">{{item.name}}</view>
+        </view>
+        <view class="text-green">{{formatMoney(item.currentValue)}}</view>
+      </view>
+      <view wx:if="{{assets.length === 0}}" class="text-muted" style="font-size:24rpx;">暂无资产记录</view>
+    </view>
+
+    <view class="card">
+      <view class="row-between">
+        <view class="card-title">负债明细</view>
+        <navigator url="/pages/liabilities/liabilities" class="text-blue" style="font-size:24rpx;">查看全部</navigator>
+      </view>
+      <view wx:for="{{liabilities}}" wx:key="id" class="list-item">
+        <view>
+          <view class="text-white">{{item.name}}</view>
+        </view>
+        <view class="text-red">{{formatMoney(item.remainingPrincipal)}}</view>
+      </view>
+      <view wx:if="{{liabilities.length === 0}}" class="text-muted" style="font-size:24rpx;">暂无负债记录</view>
+    </view>
+  </block>
+</view>

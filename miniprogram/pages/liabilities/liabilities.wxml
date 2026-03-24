@@ -1,0 +1,61 @@
+<view class="container">
+  <view class="row-between" style="margin-bottom:30rpx;">
+    <view class="text-white" style="font-size:36rpx;font-weight:bold;">负债管理</view>
+    <view class="btn btn-danger" style="width:auto;padding:16rpx 30rpx;" bindtap="toggleForm">
+      {{showForm ? '收起' : '+ 添加负债'}}
+    </view>
+  </view>
+
+  <view wx:if="{{showForm}}" class="card">
+    <view class="form-group">
+      <view class="form-label">名称</view>
+      <input class="form-input" placeholder="如: 房贷" value="{{form.name}}" bindinput="onNameInput" />
+    </view>
+    <view class="form-group">
+      <view class="form-label">类型</view>
+      <picker mode="selector" range="{{liabilityTypes}}" range-key="label" value="{{typeIndex}}" bindchange="onTypeChange">
+        <view class="form-picker">{{liabilityTypes[typeIndex].label}}</view>
+      </picker>
+    </view>
+    <view class="form-group">
+      <view class="form-label">总本金 (元)</view>
+      <input class="form-input" type="digit" value="{{form.totalPrincipal}}" bindinput="onTotalPrincipalInput" />
+    </view>
+    <view class="form-group">
+      <view class="form-label">剩余本金 (元)</view>
+      <input class="form-input" type="digit" value="{{form.remainingPrincipal}}" bindinput="onRemainingInput" />
+    </view>
+    <view class="form-group">
+      <view class="form-label">年利率 (%)</view>
+      <input class="form-input" type="digit" value="{{form.annualRate}}" bindinput="onRateInput" />
+    </view>
+    <view class="form-group">
+      <view class="form-label">月还款 (元)</view>
+      <input class="form-input" type="digit" value="{{form.monthlyPayment}}" bindinput="onPaymentInput" />
+    </view>
+    <view class="btn btn-danger" bindtap="submitForm">添加负债</view>
+  </view>
+
+  <view wx:if="{{loading}}" class="text-muted" style="text-align:center;padding:80rpx 0;">加载中...</view>
+
+  <block wx:elif>
+    <view wx:for="{{liabilities}}" wx:key="id" class="card">
+      <view class="row-between">
+        <view>
+          <view class="text-white" style="font-size:30rpx;">{{item.name}}</view>
+          <view class="tag" style="margin-top:10rpx;">{{getTypeLabel(item.type)}}</view>
+        </view>
+        <view style="text-align:right;">
+          <view class="text-red" style="font-size:32rpx;">{{formatMoney(item.remainingPrincipal)}}</view>
+          <view wx:if="{{item.monthlyPayment > 0}}" class="text-muted" style="font-size:22rpx;margin-top:6rpx;">-{{formatMoney(item.monthlyPayment)}}/月</view>
+        </view>
+      </view>
+      <view class="row" style="margin-top:16rpx;justify-content:space-between;">
+        <view class="text-muted" style="font-size:22rpx;">总本金: {{formatMoney(item.totalPrincipal)}} | 利率: {{item.annualRate}}%</view>
+        <view class="text-red" style="font-size:24rpx;" bindtap="deleteLiability" data-id="{{item.id}}">删除</view>
+      </view>
+    </view>
+
+    <view wx:if="{{liabilities.length === 0}}" class="text-muted" style="text-align:center;padding:80rpx 0;font-size:28rpx;">暂无负债记录</view>
+  </block>
+</view>

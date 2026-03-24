@@ -1,0 +1,62 @@
+<view class="container">
+  <view class="row-between" style="margin-bottom:30rpx;">
+    <view>
+      <view class="text-white" style="font-size:36rpx;font-weight:bold;">资产管理</view>
+    </view>
+    <view class="btn {{showForm ? '' : 'btn-primary'}}" style="width:auto;padding:16rpx 30rpx;" bindtap="toggleForm">
+      {{showForm ? '收起' : '+ 添加资产'}}
+    </view>
+  </view>
+
+  <view wx:if="{{showForm}}" class="card">
+    <view class="form-group">
+      <view class="form-label">名称</view>
+      <input class="form-input" placeholder="如: 工商银行存款" value="{{form.name}}" bindinput="onNameInput" />
+    </view>
+    <view class="form-group">
+      <view class="form-label">类型</view>
+      <picker mode="selector" range="{{assetTypes}}" range-key="label" value="{{typeIndex}}" bindchange="onTypeChange">
+        <view class="form-picker">{{assetTypes[typeIndex].label}}</view>
+      </picker>
+    </view>
+    <view class="form-group">
+      <view class="form-label">当前价值 (元)</view>
+      <input class="form-input" type="digit" placeholder="0.00" value="{{form.currentValue}}" bindinput="onValueInput" />
+    </view>
+    <view class="form-group">
+      <view class="form-label">月收入 (元)</view>
+      <input class="form-input" type="digit" placeholder="0.00" value="{{form.monthlyIncome}}" bindinput="onIncomeInput" />
+    </view>
+    <view class="form-group">
+      <view class="form-label">年化收益率 (%)</view>
+      <input class="form-input" type="digit" placeholder="0.00" value="{{form.annualYield}}" bindinput="onYieldInput" />
+    </view>
+    <view class="form-group">
+      <view class="form-label">备注</view>
+      <input class="form-input" placeholder="可选" value="{{form.note}}" bindinput="onNoteInput" />
+    </view>
+    <view class="btn btn-primary" bindtap="submitForm">添加资产</view>
+  </view>
+
+  <view wx:if="{{loading}}" class="text-muted" style="text-align:center;padding:80rpx 0;">加载中...</view>
+
+  <block wx:elif>
+    <view wx:for="{{assets}}" wx:key="id" class="card">
+      <view class="row-between">
+        <view>
+          <view class="text-white" style="font-size:30rpx;">{{item.name}}</view>
+          <view class="tag" style="margin-top:10rpx;">{{getTypeLabel(item.type)}}</view>
+        </view>
+        <view style="text-align:right;">
+          <view class="text-green" style="font-size:32rpx;">{{formatMoney(item.currentValue)}}</view>
+          <view wx:if="{{item.monthlyIncome > 0}}" class="text-muted" style="font-size:22rpx;margin-top:6rpx;">+{{formatMoney(item.monthlyIncome)}}/月</view>
+        </view>
+      </view>
+      <view class="row" style="margin-top:16rpx;justify-content:flex-end;">
+        <view class="text-red" style="font-size:24rpx;" bindtap="deleteAsset" data-id="{{item.id}}">删除</view>
+      </view>
+    </view>
+
+    <view wx:if="{{assets.length === 0}}" class="text-muted" style="text-align:center;padding:80rpx 0;font-size:28rpx;">暂无资产记录</view>
+  </block>
+</view>

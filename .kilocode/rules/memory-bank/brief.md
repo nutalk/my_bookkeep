@@ -1,48 +1,43 @@
-# Project Brief: Next.js Starter Template
+# Project Brief: 家庭资产负债表 (Family Balance Sheet)
 
 ## Purpose
 
-This is a minimal Next.js starter template designed for AI-assisted development. It provides a clean foundation that can be extended to build any type of web application through interaction with an AI assistant.
+A comprehensive family balance sheet tracking application with web frontend, backend API, and WeChat Mini Program. Tracks assets, liabilities, cash flow, and provides financial predictions.
 
 ## Target Users
 
-- Developers wanting a clean Next.js starting point
-- Users building applications through AI-assisted coding
-- Teams needing a standardized, modern Next.js setup
+- Families wanting to track their net worth
+- Individuals managing multiple assets and liabilities
+- Users needing cash flow prediction and monthly statistics
 
-## Core Use Case
+## Core Features
 
-Users describe what they want to build to an AI assistant, which then expands this template by:
+1. **资产管理**: Track assets (real estate, deposits, investments, income sources) with current value and cash flow generation
+2. **负债管理**: Track liabilities (mortgage, car loan, credit card, personal loans) with repayment and principal changes
+3. **记账功能**: Categorized transaction recording for income, expenses, asset changes, and liability payments
+4. **对账功能**: Periodic reconciliation with auto-generated adjustment entries when differences are found
+5. **月度统计**: Monthly snapshots of total assets, liabilities, net worth, and cash flow
+6. **现金流预测**: Predict future assets, liabilities, and monthly cash flow based on current positions
 
-1. Adding components and pages as needed
-2. Installing additional dependencies
-3. Setting up databases, authentication, etc. using recipes
-4. Customizing styling and branding
+## Business Rules
+
+- Personal income is treated as an asset that generates cash flow
+- Only real estate has physical asset value (other physical items ignored)
+- No depreciation considered for any asset
+- Reconciliation auto-creates transaction entries for balance differences
 
 ## Key Requirements
 
 ### Must Have
-
-- Modern Next.js 16 setup with App Router
+- Next.js 16 backend API with SQLite + Drizzle ORM
+- React web frontend with dark theme
+- WeChat Mini Program frontend
 - TypeScript for type safety
 - Tailwind CSS 4 for styling
-- ESLint for code quality
-- Clean, minimal starting structure
 - Bun as package manager
-
-### Nice to Have
-
-- Recipe system for common additions (database, auth)
-- Memory bank for AI context persistence
-- Clear development guidelines
-
-## Success Metrics
-
-- Clean, zero-error TypeScript setup
-- Passing lint and type checks
 
 ## Constraints
 
-- Minimal dependencies by default
 - Framework: Next.js 16 + React 19 + Tailwind CSS 4
+- Database: SQLite via Drizzle ORM + @kilocode/app-builder-db
 - Package manager: Bun

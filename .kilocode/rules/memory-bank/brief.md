@@ -12,12 +12,13 @@ A comprehensive family balance sheet tracking application with web frontend, bac
 
 ## Core Features
 
-1. **资产管理**: Track assets (real estate, deposits, investments, income sources) with current value and cash flow generation
-2. **负债管理**: Track liabilities (mortgage, car loan, credit card, personal loans) with repayment and principal changes
-3. **记账功能**: Categorized transaction recording for income, expenses, asset changes, and liability payments
-4. **对账功能**: Periodic reconciliation with auto-generated adjustment entries when differences are found
-5. **月度统计**: Monthly snapshots of total assets, liabilities, net worth, and cash flow
-6. **现金流预测**: Predict future assets, liabilities, and monthly cash flow based on current positions
+1. **用户管理**: Account registration/login with phone number, WeChat QR code login
+2. **资产管理**: Track assets (real estate, deposits, investments, income sources) with current value and cash flow generation
+3. **负债管理**: Track liabilities (mortgage, car loan, credit card, personal loans) with repayment and principal changes
+4. **记账功能**: Categorized transaction recording for income, expenses, asset changes, and liability payments
+5. **对账功能**: Periodic reconciliation with auto-generated adjustment entries when differences are found
+6. **月度统计**: Monthly snapshots of total assets, liabilities, net worth, and cash flow
+7. **现金流预测**: Predict future assets, liabilities, and monthly cash flow based on current positions
 
 ## Business Rules
 
@@ -25,12 +26,14 @@ A comprehensive family balance sheet tracking application with web frontend, bac
 - Only real estate has physical asset value (other physical items ignored)
 - No depreciation considered for any asset
 - Reconciliation auto-creates transaction entries for balance differences
+- Each user's data is isolated by user_id
 
 ## Key Requirements
 
 ### Must Have
-- Next.js 16 backend API with SQLite + Drizzle ORM
+- Next.js 16 backend API with MySQL + Drizzle ORM
 - React web frontend with dark theme
+- User authentication (phone + password, WeChat OAuth)
 - WeChat Mini Program frontend
 - TypeScript for type safety
 - Tailwind CSS 4 for styling
@@ -39,5 +42,6 @@ A comprehensive family balance sheet tracking application with web frontend, bac
 ## Constraints
 
 - Framework: Next.js 16 + React 19 + Tailwind CSS 4
-- Database: SQLite via Drizzle ORM + @kilocode/app-builder-db
+- Database: MySQL via Drizzle ORM + mysql2
 - Package manager: Bun
+- Auth: Session-based with httpOnly cookies

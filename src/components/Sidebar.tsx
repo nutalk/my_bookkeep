@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 
 const navItems = [
   { href: "/", label: "总览", icon: "📊" },
@@ -12,8 +13,39 @@ const navItems = [
   { href: "/statistics", label: "统计", icon: "📈" },
 ];
 
+interface UserInfo {
+  id: number;
+  phone: string;
+  nickname: string | null;
+  avatarUrl: string | null;
+}
+
 export function Sidebar() {
   const pathname = usePathname();
+  const router = useRouter();
+  const [user, setUser] = useState<UserInfo | null>(null);
+  const [loggingOut, setLoggingOut] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/auth/me")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.user) setUser(data.user);
+      })
+      .catch(() => {});
+  }, []);
+
+  const handleLogout = async () => {
+    setLoggingOut(true);
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+      setUser(null);
+      router.push("/login");
+      router.refresh();
+    } finally {
+      setLoggingOut(false);
+    }
+  };
 
   return (
     <aside className="w-56 bg-neutral-900 border-r border-neutral-800 min-h-screen flex flex-col">
@@ -42,8 +74,23 @@ export function Sidebar() {
           );
         })}
       </nav>
-      <div className="p-3 border-t border-neutral-800 text-xs text-neutral-500">
-        v0.1.0
+      <div className="p-3 border-t border-neutral-800">
+        {user && (
+          <div className="mb-2">
+            <p className="text-sm text-white truncate">
+              {user.nickname || user.phone}
+            </p>
+            <p className="text-xs text-neutral-500">{user.phone}</p>
+          </div>
+        )}
+        <button
+          onClick={handleLogout}
+          disabled={loggingOut}
+          className="w-full text-xs text-neutral-400 hover:text-white hover:bg-neutral-800 rounded-lg px-3 py-2 transition-colors disabled:opacity-50"
+        >
+          {loggingOut ? "退出中..." : "退出登录"}
+        </button>
+        <p className="text-xs text-neutral-600 mt-2 text-center">v0.2.0</p>
       </div>
     </aside>
   );

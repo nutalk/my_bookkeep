@@ -1,18 +1,20 @@
 import { db } from "@/db";
 import { assets, liabilities } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import Link from "next/link";
 import { formatMoney, getAssetTypeLabel, getLiabilityTypeLabel } from "@/lib/utils";
+import { requireUser } from "@/lib/auth";
+import { redirect } from "next/navigation";
 
-async function getDashboardData() {
+async function getDashboardData(userId: number) {
   const allAssets = await db
     .select()
     .from(assets)
-    .where(eq(assets.isActive, true));
+    .where(and(eq(assets.isActive, true), eq(assets.userId, userId)));
   const allLiabilities = await db
     .select()
     .from(liabilities)
-    .where(eq(liabilities.isActive, true));
+    .where(and(eq(liabilities.isActive, true), eq(liabilities.userId, userId)));
 
   const totalAssets = allAssets.reduce((s, a) => s + a.currentValue, 0);
   const totalLiabilities = allLiabilities.reduce(
@@ -42,14 +44,21 @@ async function getDashboardData() {
 }
 
 export default async function Home() {
-  const data = await getDashboardData();
+  let user;
+  try {
+    user = await requireUser();
+  } catch {
+    redirect("/login");
+  }
+
+  const data = await getDashboardData(user.id);
 
   return (
     <div className="p-6 space-y-6">
       <div>
         <h2 className="text-2xl font-bold text-white mb-1">财务总览</h2>
         <p className="text-sm text-neutral-400">
-          家庭资产负债表 — 实时数据
+          欢迎回来，{user.nickname || user.phone} — 实时数据
         </p>
       </div>
 

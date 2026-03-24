@@ -9,7 +9,8 @@
 | TypeScript | 5.9.x | Type-safe JavaScript |
 | Tailwind CSS | 4.x | Utility-first CSS |
 | Drizzle ORM | 0.45.x | Database ORM |
-| @kilocode/app-builder-db | latest | SQLite database provider |
+| mysql2 | 3.20.x | MySQL driver |
+| bcryptjs | 3.0.x | Password hashing |
 | drizzle-kit | 0.31.x | Migration generation |
 | Bun | Latest | Package manager & runtime |
 
@@ -23,8 +24,21 @@ bun start          # Start production server
 bun lint           # Run ESLint
 bun typecheck      # Run TypeScript type checking
 bun db:generate    # Generate Drizzle migrations
-bun db:migrate     # Run migrations (auto in sandbox)
+bun db:migrate     # Run migrations
 ```
+
+## Environment Variables
+
+| Variable | Purpose | Default |
+|----------|---------|---------|
+| MYSQL_HOST | MySQL server host | localhost |
+| MYSQL_PORT | MySQL server port | 3306 |
+| MYSQL_USER | MySQL username | root |
+| MYSQL_PASSWORD | MySQL password | (empty) |
+| MYSQL_DATABASE | Database name | family_balance_sheet |
+| WECHAT_APP_ID | WeChat OAuth App ID | - |
+| WECHAT_APP_SECRET | WeChat OAuth App Secret | - |
+| NEXT_PUBLIC_WECHAT_APP_ID | WeChat App ID for frontend | - |
 
 ## Project Configuration
 
@@ -44,31 +58,7 @@ bun db:migrate     # Run migrations (auto in sandbox)
 ### Drizzle
 - Schema: `./src/db/schema.ts`
 - Migrations: `./src/db/migrations/`
-- Dialect: sqlite
-
-## Key Dependencies
-
-### Production
-```json
-{
-  "@kilocode/app-builder-db": "github:Kilo-Org/app-builder-db#main",
-  "drizzle-orm": "^0.45.1",
-  "next": "^16.1.3",
-  "react": "^19.2.3",
-  "react-dom": "^19.2.3"
-}
-```
-
-### Dev
-```json
-{
-  "drizzle-kit": "^0.31.10",
-  "typescript": "^5.9.3",
-  "tailwindcss": "^4.1.17",
-  "eslint": "^9.39.1",
-  "eslint-config-next": "^16.0.0"
-}
-```
+- Dialect: mysql
 
 ## WeChat Mini Program
 
@@ -76,9 +66,3 @@ Located in `miniprogram/` directory. Uses standard WeChat Mini Program structure
 - WXML templates, WXSS styles, JS logic
 - Communicates with backend API via `wx.request`
 - Configurable base URL in `app.js` for dev/prod environments
-
-## Environment
-
-- Database credentials (`DB_URL`, `DB_TOKEN`) auto-provided by sandbox
-- Migrations run automatically after push in sandbox
-- Never run `bun db:migrate` manually in sandbox

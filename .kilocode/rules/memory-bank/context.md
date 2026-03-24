@@ -2,59 +2,51 @@
 
 ## Current State
 
-**Status**: Initial implementation complete
+**Status**: Account management system implemented
 
-The project has been transformed from a Next.js starter template into a full-featured family balance sheet tracking application with:
-- SQLite database with Drizzle ORM
-- RESTful API routes for all CRUD operations
-- Web frontend with 6 pages (dashboard, assets, liabilities, transactions, reconciliations, statistics)
-- WeChat Mini Program with 5 pages
-- Cash flow prediction engine
-- Monthly snapshot generation
+The project now includes a full account management system with MySQL database, phone number registration/login, and WeChat QR code login support.
 
 ## Recently Completed
 
-- [x] Database schema: 6 tables (categories, assets, liabilities, transactions, reconciliations, monthly_snapshots)
-- [x] API routes: categories, assets, liabilities, transactions, reconciliations, statistics
-- [x] Web frontend: Dashboard, Assets, Liabilities, Transactions, Reconciliations, Statistics pages
-- [x] Reusable form components: AssetForm, LiabilityForm, TransactionForm
-- [x] Utility functions: formatMoney, formatDate, type label mappers
-- [x] WeChat Mini Program: All 5 pages with API integration
-- [x] Cash flow prediction: 6/12/24/36 month forward projection
-- [x] Reconciliation with auto-adjustment entries
+- [x] Migrated database from SQLite to MySQL (mysql2 driver)
+- [x] Added `users` table (phone, password_hash, nickname, wechat_openid, avatar_url)
+- [x] Added `sessions` table (user_id, token, expires_at)
+- [x] Added `user_id` to all existing tables for data isolation
+- [x] Created auth API routes: register, login, wechat, logout, me
+- [x] Created login/register page with phone number and WeChat login
+- [x] Added Next.js middleware for auth protection on page routes
+- [x] Updated all API routes to filter by user_id
+- [x] Updated Sidebar with user info display and logout button
+- [x] Updated Dashboard page with user greeting and auth check
+- [x] Removed old @kilocode/app-builder-db dependency
 - [x] All lint and type checks passing
 
 ## Current Structure
 
 | Component | File/Directory | Status |
 |-----------|----------------|--------|
-| Database schema | `src/db/schema.ts` | 6 tables defined |
-| Database client | `src/db/index.ts` | Ready |
-| Migrations | `src/db/migrations/` | Generated |
-| API - Categories | `src/app/api/categories/route.ts` | CRUD complete |
-| API - Assets | `src/app/api/assets/route.ts` | CRUD with soft-delete |
-| API - Liabilities | `src/app/api/liabilities/route.ts` | CRUD with soft-delete |
-| API - Transactions | `src/app/api/transactions/route.ts` | CRUD with auto-updates |
-| API - Reconciliations | `src/app/api/reconciliations/route.ts` | Auto-adjustment |
-| API - Statistics | `src/app/api/statistics/` | Monthly, prediction, snapshot |
-| Web - Dashboard | `src/app/page.tsx` | Overview with key metrics |
-| Web - Assets | `src/app/assets/page.tsx` | Management with table |
-| Web - Liabilities | `src/app/liabilities/page.tsx` | Management with table |
-| Web - Transactions | `src/app/transactions/page.tsx` | List with filters |
-| Web - Reconciliations | `src/app/reconciliations/page.tsx` | Reconciliation form & history |
-| Web - Statistics | `src/app/statistics/page.tsx` | Prediction & snapshots |
-| Web - Layout | `src/app/layout.tsx` | Sidebar navigation |
-| Components | `src/components/Sidebar.tsx`, `Forms.tsx` | Ready |
-| Utils | `src/lib/utils.ts` | Formatters & helpers |
-| Mini Program | `miniprogram/` | 5 pages, API integration |
+| Database schema | `src/db/schema.ts` | 8 tables (users, sessions + 6 original) |
+| Database client | `src/db/index.ts` | MySQL via mysql2 |
+| Migrations | `src/db/migrations/` | Cleared for MySQL regeneration |
+| Drizzle config | `drizzle.config.ts` | MySQL dialect |
+| Auth middleware | `src/middleware.ts` | Redirects to /login |
+| Auth - Register | `src/app/api/auth/register/route.ts` | Phone + password |
+| Auth - Login | `src/app/api/auth/login/route.ts` | Phone + password |
+| Auth - WeChat | `src/app/api/auth/wechat/route.ts` | OAuth2 flow |
+| Auth - Logout | `src/app/api/auth/logout/route.ts` | Session cleanup |
+| Auth - Me | `src/app/api/auth/me/route.ts` | Current user info |
+| Auth helper | `src/lib/auth.ts` | Session management |
+| Login page | `src/app/login/page.tsx` | Phone/WeChat login UI |
+| Sidebar | `src/components/Sidebar.tsx` | User info + logout |
+| All API routes | `src/app/api/*/route.ts` | Updated with user_id filtering |
 
 ## Pending Improvements
 
 - [ ] Add category management UI (currently only API)
-- [ ] Add authentication/user management
 - [ ] Add chart visualizations for statistics
 - [ ] Add data export functionality
-- [ ] Add WeChat login integration for mini program
+- [ ] WeChat Mini Program API integration update for auth
+- [ ] Add password reset functionality
 
 ## Session History
 
@@ -62,3 +54,4 @@ The project has been transformed from a Next.js starter template into a full-fea
 |------|---------|
 | Initial | Template created with base setup |
 | 2026-03-24 | Full implementation: database, API, web frontend, WeChat mini program |
+| 2026-03-24 | Account system: MySQL migration, user auth, phone/WeChat login, data isolation |

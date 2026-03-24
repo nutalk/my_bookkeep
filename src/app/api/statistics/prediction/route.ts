@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { assets, liabilities } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
+import { requireUser } from "@/lib/auth";
 
 interface PredictionMonth {
   month: string;
@@ -23,6 +24,7 @@ interface PredictionMonth {
 
 export async function GET(request: Request) {
   try {
+    const user = await requireUser();
     const { searchParams } = new URL(request.url);
     const months = Number(searchParams.get("months") || "12");
 
@@ -31,19 +33,16 @@ export async function GET(request: Request) {
     const currentYear = now.getFullYear();
     const currentMonth = now.getMonth() + 1;
 
-    // 获取所有活跃资产
     const allAssets = await db
       .select()
       .from(assets)
-      .where(eq(assets.isActive, true));
+      .where(and(eq(assets.isActive, true), eq(assets.userId, user.id)));
 
-    // 获取所有活跃负债
     const allLiabilities = await db
       .select()
       .from(liabilities)
-      .where(eq(liabilities.isActive, true));
+      .where(and(eq(liabilities.isActive, true), eq(liabilities.userId, user.id)));
 
-    // 创建资产的可变副本用于预测
     const assetState = allAssets.map((a) => ({
       id: a.id,
       name: a.name,
@@ -53,7 +52,6 @@ export async function GET(request: Request) {
       type: a.type,
     }));
 
-    // 创建负债的可变副本用于预测
     const liabilityState = allLiabilities.map((l) => ({
       id: l.id,
       name: l.name,
@@ -74,9 +72,7 @@ export async function GET(request: Request) {
           : currentYear;
       const monthStr = `${targetYear}-${String(targetMonth).padStart(2, "0")}`;
 
-      // 计算当月资产收入
       const assetDetails = assetState.map((a) => {
-        // 投资类资产按年化收益率计算月收入
         let income = a.monthlyIncome;
         if (a.type === "deposit" || a.type === "investment") {
           income = (a.value * a.annualYield) / 12;
@@ -88,7 +84,6 @@ export async function GET(request: Request) {
         };
       });
 
-      // 计算当月负债还款
       const liabilityDetails = liabilityState.map((l) => {
         const monthlyInterest = (l.remainingPrincipal * l.annualRate) / 12;
         const principalPayment = Math.max(
@@ -130,22 +125,17 @@ export async function GET(request: Request) {
         liabilityDetails,
       });
 
-      // 更新下月状态
-      // 资产增加收入
       for (let j = 0; j < assetState.length; j++) {
         const a = assetState[j];
         let income = a.monthlyIncome;
         if (a.type === "deposit" || a.type === "investment") {
           income = (a.value * a.annualYield) / 12;
         }
-        // 收入来源的收入不增加资产价值（取出现金）
-        // 存款和投资的利息自动再投入
         if (a.type === "deposit" || a.type === "investment") {
           assetState[j] = { ...a, value: a.value + income };
         }
       }
 
-      // 负债减少本金
       for (let j = 0; j < liabilityState.length; j++) {
         const l = liabilityState[j];
         const monthlyInterest =
@@ -184,7 +174,10 @@ export async function GET(request: Request) {
         ),
       },
     });
-  } catch {
+  } catch (e) {
+    if ((e as Error).message === "UNAUTHORIZED") {
+      return NextResponse.json({ error: "请先登录" }, { status: 401 });
+    }
     return NextResponse.json(
       { error: "生成现金流预测失败" },
       { status: 500 }

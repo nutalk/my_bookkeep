@@ -6,33 +6,42 @@
 src/
 ├── app/                          # Next.js App Router
 │   ├── layout.tsx                # Root layout with Sidebar
-│   ├── page.tsx                  # Dashboard (overview)
+│   ├── page.tsx                  # Dashboard (overview, auth-protected)
 │   ├── globals.css               # Tailwind styles
+│   ├── login/page.tsx            # Login/Register page
 │   ├── assets/page.tsx           # Asset management page
 │   ├── liabilities/page.tsx      # Liability management page
 │   ├── transactions/page.tsx     # Transaction list page
 │   ├── reconciliations/page.tsx  # Reconciliation page
 │   ├── statistics/page.tsx       # Statistics & prediction page
 │   └── api/                      # API routes (backend)
-│       ├── categories/route.ts   # CRUD for categories
-│       ├── assets/route.ts       # CRUD for assets
-│       ├── liabilities/route.ts  # CRUD for liabilities
-│       ├── transactions/route.ts # CRUD for transactions
-│       ├── reconciliations/route.ts # Reconciliation logic
+│       ├── auth/
+│       │   ├── register/route.ts # Phone + password registration
+│       │   ├── login/route.ts    # Phone + password login
+│       │   ├── wechat/route.ts   # WeChat OAuth login
+│       │   ├── logout/route.ts   # Session cleanup
+│       │   └── me/route.ts       # Current user info
+│       ├── categories/route.ts   # CRUD for categories (user-scoped)
+│       ├── assets/route.ts       # CRUD for assets (user-scoped)
+│       ├── liabilities/route.ts  # CRUD for liabilities (user-scoped)
+│       ├── transactions/route.ts # CRUD for transactions (user-scoped)
+│       ├── reconciliations/route.ts # Reconciliation (user-scoped)
 │       └── statistics/
-│           ├── monthly/route.ts  # Monthly stats & snapshots
-│           ├── prediction/route.ts # Cash flow prediction
-│           └── snapshot/route.ts # Dashboard overview data
+│           ├── monthly/route.ts  # Monthly stats (user-scoped)
+│           ├── prediction/route.ts # Cash flow prediction (user-scoped)
+│           └── snapshot/route.ts # Dashboard overview (user-scoped)
 ├── components/
-│   ├── Sidebar.tsx               # Navigation sidebar
+│   ├── Sidebar.tsx               # Navigation sidebar + user info + logout
 │   └── Forms.tsx                 # AssetForm, LiabilityForm, TransactionForm
 ├── lib/
+│   ├── auth.ts                   # Session management (create/get/delete)
 │   └── utils.ts                  # Format helpers (money, date, type labels)
-└── db/
-    ├── schema.ts                 # Drizzle schema (6 tables)
-    ├── index.ts                  # Database client
-    ├── migrate.ts                # Migration runner
-    └── migrations/               # Auto-generated SQL migrations
+├── db/
+│   ├── schema.ts                 # Drizzle schema (8 tables, MySQL)
+│   ├── index.ts                  # Database client (mysql2)
+│   ├── migrate.ts                # Migration runner
+│   └── migrations/               # Auto-generated SQL migrations
+└── middleware.ts                  # Auth protection for page routes
 
 miniprogram/                      # WeChat Mini Program (separate project)
 ├── app.js/app.json/app.wxss      # App config & global styles
@@ -46,47 +55,62 @@ miniprogram/                      # WeChat Mini Program (separate project)
     └── statistics/               # Statistics & prediction
 ```
 
-## Database Schema (6 tables)
+## Database Schema (8 tables)
 
 | Table | Purpose |
 |-------|---------|
-| `categories` | Income/expense/asset/liability categories with hierarchy |
-| `assets` | Asset records (name, type, value, monthly income, yield) |
-| `liabilities` | Liability records (name, type, principal, rate, payment) |
-| `transactions` | Transaction records (type, amount, principal/interest split) |
-| `reconciliations` | Reconciliation records (expected vs actual, auto-adjustment) |
-| `monthly_snapshots` | Monthly aggregated stats (assets, liabilities, net worth) |
+| `users` | User accounts (phone, password_hash, nickname, wechat_openid) |
+| `sessions` | Auth sessions (user_id, token, expires_at) |
+| `categories` | Income/expense/asset/liability categories (user-scoped) |
+| `assets` | Asset records (user-scoped) |
+| `liabilities` | Liability records (user-scoped) |
+| `transactions` | Transaction records (user-scoped) |
+| `reconciliations` | Reconciliation records (user-scoped) |
+| `monthly_snapshots` | Monthly aggregated stats (user-scoped) |
 
 ## API Routes
 
 | Route | Methods | Purpose |
 |-------|---------|---------|
-| `/api/categories` | GET, POST, PUT, DELETE | Category CRUD |
-| `/api/assets` | GET, POST, PUT, DELETE | Asset CRUD |
-| `/api/liabilities` | GET, POST, PUT, DELETE | Liability CRUD |
-| `/api/transactions` | GET, POST, PUT, DELETE | Transaction CRUD with auto-updates |
-| `/api/reconciliations` | GET, POST | Reconciliation with auto-entry creation |
-| `/api/statistics/monthly` | GET, POST | Monthly stats & snapshot generation |
-| `/api/statistics/prediction` | GET | Cash flow prediction (6/12/24/36 months) |
-| `/api/statistics/snapshot` | GET | Dashboard overview data |
+| `/api/auth/register` | POST | Phone + password registration |
+| `/api/auth/login` | POST | Phone + password login |
+| `/api/auth/wechat` | POST | WeChat OAuth login |
+| `/api/auth/logout` | POST | Logout (delete session) |
+| `/api/auth/me` | GET | Get current user info |
+| `/api/categories` | GET, POST, PUT, DELETE | Category CRUD (auth required) |
+| `/api/assets` | GET, POST, PUT, DELETE | Asset CRUD (auth required) |
+| `/api/liabilities` | GET, POST, PUT, DELETE | Liability CRUD (auth required) |
+| `/api/transactions` | GET, POST, PUT, DELETE | Transaction CRUD (auth required) |
+| `/api/reconciliations` | GET, POST | Reconciliation (auth required) |
+| `/api/statistics/monthly` | GET, POST | Monthly stats (auth required) |
+| `/api/statistics/prediction` | GET | Cash flow prediction (auth required) |
+| `/api/statistics/snapshot` | GET | Dashboard overview (auth required) |
 
 ## Key Design Patterns
 
-### Transaction Auto-Updates
-When creating transactions, the API automatically updates related assets/liabilities:
-- `asset_value_change` → Updates asset's `currentValue`
-- `liability_repayment` → Subtracts `principalPart` from liability's `remainingPrincipal`
-- `liability_principal_change` → Adjusts liability's `remainingPrincipal`
+### Authentication Flow
+1. User registers/logs in via phone or WeChat
+2. Server creates a session token (30-day expiry) stored in `sessions` table
+3. Token is set as httpOnly cookie (`session_token`)
+4. Middleware checks cookie on page navigations, redirects to `/login` if missing
+5. API routes use `requireUser()` to extract user from session and filter data by `user_id`
 
-### Reconciliation Auto-Adjustment
-When reconciling, if `actualBalance != expectedBalance`, a `reconciliation` type transaction is auto-created to account for the difference.
+### Data Isolation
+All existing tables have a `user_id` foreign key. Every API query includes `eq(table.userId, user.id)` in WHERE clause to ensure users only see their own data.
+
+### MySQL Pattern Changes from SQLite
+- No `.returning()` - use insert → get insertId → select pattern
+- Use `mysqlTable` instead of `sqliteTable`
+- Use `serial` for auto-increment primary keys
+- Use `double` instead of `real` for floating point
+- Use `datetime` instead of `integer` for timestamps
+- Use `boolean` instead of `integer { mode: "boolean" }`
+
+### Transaction Auto-Updates
+When creating transactions, the API automatically updates related assets/liabilities (same as before, now user-scoped).
 
 ### Cash Flow Prediction
-Predicts N months ahead by:
-1. Calculating monthly income from assets (interest/deposits auto-reinvest)
-2. Calculating monthly payments from liabilities (principal + interest split)
-3. Updating asset values and liability principals each month
-4. Reporting net worth trajectory and cash flow over time
+Predicts N months ahead with asset yield compounding and liability principal reduction (same as before, now user-scoped).
 
 ## Styling Conventions
 

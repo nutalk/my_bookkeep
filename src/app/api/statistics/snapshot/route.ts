@@ -1,21 +1,22 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { assets, liabilities, monthlySnapshots } from "@/db/schema";
-import { eq, desc } from "drizzle-orm";
+import { eq, and, desc } from "drizzle-orm";
+import { requireUser } from "@/lib/auth";
 
 export async function GET() {
   try {
-    // 获取所有活跃资产
+    const user = await requireUser();
+
     const allAssets = await db
       .select()
       .from(assets)
-      .where(eq(assets.isActive, true));
+      .where(and(eq(assets.isActive, true), eq(assets.userId, user.id)));
 
-    // 获取所有活跃负债
     const allLiabilities = await db
       .select()
       .from(liabilities)
-      .where(eq(liabilities.isActive, true));
+      .where(and(eq(liabilities.isActive, true), eq(liabilities.userId, user.id)));
 
     const totalAssets = allAssets.reduce(
       (sum, a) => sum + a.currentValue,
@@ -30,10 +31,10 @@ export async function GET() {
       allAssets.reduce((sum, a) => sum + (a.monthlyIncome ?? 0), 0) -
       allLiabilities.reduce((sum, l) => sum + l.monthlyPayment, 0);
 
-    // 获取最近的月度快照
     const recentSnapshots = await db
       .select()
       .from(monthlySnapshots)
+      .where(eq(monthlySnapshots.userId, user.id))
       .orderBy(desc(monthlySnapshots.month))
       .limit(6);
 
@@ -63,7 +64,10 @@ export async function GET() {
       })),
       recentSnapshots,
     });
-  } catch {
+  } catch (e) {
+    if ((e as Error).message === "UNAUTHORIZED") {
+      return NextResponse.json({ error: "请先登录" }, { status: 401 });
+    }
     return NextResponse.json(
       { error: "获取总览数据失败" },
       { status: 500 }

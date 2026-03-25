@@ -98,6 +98,8 @@ docker-compose up -d
 
 访问 http://localhost:3000
 
+数据库表结构会在容器启动时自动创建（通过 `docker-entrypoint.sh`）。
+
 ### 仅部署应用 (使用已有 MySQL)
 
 ```bash
@@ -110,15 +112,6 @@ docker run -d \
   -e MYSQL_PASSWORD=your_password \
   -e MYSQL_DATABASE=family_balance_sheet \
   nutalk/my-bookkeep:latest
-```
-
-### 首次部署初始化数据库
-
-容器启动后需要初始化数据库表结构：
-
-```bash
-# 进入容器执行迁移
-docker exec bookkeep bun db:migrate
 ```
 
 ## CI/CD

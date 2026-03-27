@@ -141,10 +141,15 @@ async function calculateMonthlyStats(month: string, userId: number) {
     (sum, a) => sum + (a.monthlyIncome ?? 0),
     0
   );
-  const monthlyLiabilityPayment = allLiabilities.reduce(
-    (sum, l) => sum + l.monthlyPayment,
-    0
-  );
+  const monthlyLiabilityPayment = allLiabilities.reduce((sum, l) => {
+    const method = l.repaymentMethod || "equal_installment";
+    if (method === "equal_installment") return sum + l.monthlyPayment;
+    if (method === "interest_only") {
+      return sum + (l.remainingPrincipal * l.annualRate) / 12;
+    }
+    // lump_sum: no regular monthly payment
+    return sum;
+  }, 0);
   const monthlyCashFlow = monthlyAssetIncome - monthlyLiabilityPayment;
 
   const assetBreakdown = allAssets.map((a) => ({
@@ -162,6 +167,7 @@ async function calculateMonthlyStats(month: string, userId: number) {
     remainingPrincipal: l.remainingPrincipal,
     monthlyPayment: l.monthlyPayment,
     annualRate: l.annualRate,
+    repaymentMethod: l.repaymentMethod || "equal_installment",
   }));
 
   const incomeTotal = monthTransactions

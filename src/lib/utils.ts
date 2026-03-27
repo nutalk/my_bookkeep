@@ -38,6 +38,15 @@ export function getLiabilityTypeLabel(type: string): string {
   return map[type] ?? type;
 }
 
+export function getRepaymentMethodLabel(method: string): string {
+  const map: Record<string, string> = {
+    equal_installment: "等额本息",
+    interest_only: "按月付息到期还本",
+    lump_sum: "一次性到期还本付息",
+  };
+  return map[method] ?? method;
+}
+
 export function getTransactionTypeLabel(type: string): string {
   const map: Record<string, string> = {
     asset_value_change: "资产价值变动",

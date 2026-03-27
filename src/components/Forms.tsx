@@ -162,6 +162,27 @@ export function AssetForm({ onSuccess }: { onSuccess?: () => void }) {
   );
 }
 
+function calcMonthlyPayment(
+  principal: number,
+  annualRate: number,
+  method: string,
+  months?: number
+): number {
+  if (!principal || principal <= 0) return 0;
+  const r = annualRate / 100 / 12;
+  const n = months ?? 12;
+
+  if (method === "equal_installment") {
+    if (r === 0) return principal / n;
+    return (principal * r * Math.pow(1 + r, n)) / (Math.pow(1 + r, n) - 1);
+  }
+  if (method === "interest_only") {
+    return principal * r;
+  }
+  // lump_sum: no monthly payment
+  return 0;
+}
+
 export function LiabilityForm({ onSuccess }: { onSuccess?: () => void }) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
@@ -171,12 +192,23 @@ export function LiabilityForm({ onSuccess }: { onSuccess?: () => void }) {
     totalPrincipal: "",
     remainingPrincipal: "",
     annualRate: "",
+    repaymentMethod: "equal_installment",
     monthlyPayment: "",
     paymentDay: "",
     startDate: "",
     endDate: "",
     note: "",
   });
+  const [calcMonths, setCalcMonths] = useState("12");
+
+  const handleAutoCalc = () => {
+    const principal = Number(form.remainingPrincipal || form.totalPrincipal);
+    const rate = Number(form.annualRate);
+    if (!principal || principal <= 0) return;
+    const months = Number(calcMonths) || 12;
+    const payment = calcMonthlyPayment(principal, rate, form.repaymentMethod, months);
+    setForm((f) => ({ ...f, monthlyPayment: String(Math.round(payment * 100) / 100) }));
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -201,6 +233,7 @@ export function LiabilityForm({ onSuccess }: { onSuccess?: () => void }) {
           totalPrincipal: "",
           remainingPrincipal: "",
           annualRate: "",
+          repaymentMethod: "equal_installment",
           monthlyPayment: "",
           paymentDay: "",
           startDate: "",
@@ -276,6 +309,20 @@ export function LiabilityForm({ onSuccess }: { onSuccess?: () => void }) {
           />
         </div>
       </div>
+      <div>
+        <label className="block text-sm text-neutral-400 mb-1">还款方式</label>
+        <select
+          value={form.repaymentMethod}
+          onChange={(e) =>
+            setForm({ ...form, repaymentMethod: e.target.value })
+          }
+          className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
+        >
+          <option value="equal_installment">等额本息</option>
+          <option value="interest_only">按月付息到期还本</option>
+          <option value="lump_sum">一次性到期还本付息</option>
+        </select>
+      </div>
       <div className="grid grid-cols-3 gap-4">
         <div>
           <label className="block text-sm text-neutral-400 mb-1">
@@ -291,7 +338,9 @@ export function LiabilityForm({ onSuccess }: { onSuccess?: () => void }) {
         </div>
         <div>
           <label className="block text-sm text-neutral-400 mb-1">
-            月还款 (元)
+            {form.repaymentMethod === "lump_sum"
+              ? "到期总还款 (元)"
+              : "月还款 (元)"}
           </label>
           <input
             type="number"
@@ -301,12 +350,12 @@ export function LiabilityForm({ onSuccess }: { onSuccess?: () => void }) {
               setForm({ ...form, monthlyPayment: e.target.value })
             }
             className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
+            placeholder={form.repaymentMethod === "lump_sum" ? "到期时一次性支付" : ""}
+            disabled={form.repaymentMethod === "lump_sum"}
           />
         </div>
         <div>
-          <label className="block text-sm text-neutral-400 mb-1">
-            还款日
-          </label>
+          <label className="block text-sm text-neutral-400 mb-1">还款日</label>
           <input
             type="number"
             min="1"
@@ -318,6 +367,29 @@ export function LiabilityForm({ onSuccess }: { onSuccess?: () => void }) {
           />
         </div>
       </div>
+      {form.repaymentMethod !== "lump_sum" && (
+        <div className="flex items-end gap-3">
+          <div className="flex-1">
+            <label className="block text-sm text-neutral-400 mb-1">
+              计算期数 (月)
+            </label>
+            <input
+              type="number"
+              min="1"
+              value={calcMonths}
+              onChange={(e) => setCalcMonths(e.target.value)}
+              className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
+            />
+          </div>
+          <button
+            type="button"
+            onClick={handleAutoCalc}
+            className="bg-neutral-700 hover:bg-neutral-600 text-white rounded-lg px-4 py-2 text-sm font-medium transition-colors whitespace-nowrap"
+          >
+            自动计算月供
+          </button>
+        </div>
+      )}
       <div className="grid grid-cols-2 gap-4">
         <div>
           <label className="block text-sm text-neutral-400 mb-1">开始日期</label>

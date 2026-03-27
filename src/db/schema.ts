@@ -81,6 +81,9 @@ export const liabilities = mysqlTable("liabilities", {
   totalPrincipal: double("total_principal").notNull(),
   remainingPrincipal: double("remaining_principal").notNull(),
   annualRate: double("annual_rate").notNull().default(0),
+  repaymentMethod: varchar("repayment_method", { length: 30 })
+    .notNull()
+    .default("equal_installment"),
   monthlyPayment: double("monthly_payment").notNull().default(0),
   paymentDay: int("payment_day"),
   startDate: datetime("start_date"),

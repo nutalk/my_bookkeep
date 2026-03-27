@@ -19,6 +19,7 @@ interface PredictionMonth {
     payment: number;
     interest: number;
     principal: number;
+    repaymentMethod: string;
   }[];
 }
 
@@ -52,14 +53,26 @@ export async function GET(request: Request) {
       type: a.type,
     }));
 
-    const liabilityState = allLiabilities.map((l) => ({
-      id: l.id,
-      name: l.name,
-      remainingPrincipal: l.remainingPrincipal,
-      annualRate: l.annualRate,
-      monthlyPayment: l.monthlyPayment,
-      type: l.type,
-    }));
+    const liabilityState = allLiabilities.map((l) => {
+      let maturityMonth = 0;
+      if (l.endDate) {
+        const endDate = new Date(l.endDate);
+        maturityMonth =
+          (endDate.getFullYear() - currentYear) * 12 +
+          (endDate.getMonth() + 1 - currentMonth);
+      }
+      return {
+        id: l.id,
+        name: l.name,
+        remainingPrincipal: l.remainingPrincipal,
+        totalPrincipal: l.totalPrincipal,
+        annualRate: l.annualRate,
+        monthlyPayment: l.monthlyPayment,
+        type: l.type,
+        repaymentMethod: l.repaymentMethod || "equal_installment",
+        maturityMonth,
+      };
+    });
 
     for (let i = 0; i < months; i++) {
       const targetMonth =
@@ -85,17 +98,34 @@ export async function GET(request: Request) {
       });
 
       const liabilityDetails = liabilityState.map((l) => {
-        const monthlyInterest = (l.remainingPrincipal * l.annualRate) / 12;
-        const principalPayment = Math.max(
-          0,
-          l.monthlyPayment - monthlyInterest
-        );
+        const monthlyRate = l.annualRate / 12;
+        const monthlyInterest = l.remainingPrincipal * monthlyRate;
+        let payment = 0;
+        let principalPayment = 0;
+
+        if (l.repaymentMethod === "equal_installment") {
+          payment = l.monthlyPayment;
+          principalPayment = Math.max(0, l.monthlyPayment - monthlyInterest);
+        } else if (l.repaymentMethod === "interest_only") {
+          payment = monthlyInterest;
+          principalPayment = 0;
+        } else if (l.repaymentMethod === "lump_sum") {
+          if (l.maturityMonth === i) {
+            payment = l.remainingPrincipal + monthlyInterest;
+            principalPayment = l.remainingPrincipal;
+          } else {
+            payment = 0;
+            principalPayment = 0;
+          }
+        }
+
         return {
           name: l.name,
           remainingPrincipal: l.remainingPrincipal,
-          payment: l.monthlyPayment,
+          payment,
           interest: monthlyInterest,
           principal: principalPayment,
+          repaymentMethod: l.repaymentMethod,
         };
       });
 
@@ -125,6 +155,7 @@ export async function GET(request: Request) {
         liabilityDetails,
       });
 
+      // Update asset state for next month
       for (let j = 0; j < assetState.length; j++) {
         const a = assetState[j];
         let income = a.monthlyIncome;
@@ -136,14 +167,23 @@ export async function GET(request: Request) {
         }
       }
 
+      // Update liability state for next month
       for (let j = 0; j < liabilityState.length; j++) {
         const l = liabilityState[j];
-        const monthlyInterest =
-          (l.remainingPrincipal * l.annualRate) / 12;
-        const principalPayment = Math.max(
-          0,
-          l.monthlyPayment - monthlyInterest
-        );
+        const monthlyRate = l.annualRate / 12;
+        const monthlyInterest = l.remainingPrincipal * monthlyRate;
+        let principalPayment = 0;
+
+        if (l.repaymentMethod === "equal_installment") {
+          principalPayment = Math.max(0, l.monthlyPayment - monthlyInterest);
+        } else if (l.repaymentMethod === "interest_only") {
+          principalPayment = 0;
+        } else if (l.repaymentMethod === "lump_sum") {
+          if (l.maturityMonth === i) {
+            principalPayment = l.remainingPrincipal;
+          }
+        }
+
         const newPrincipal = Math.max(
           0,
           l.remainingPrincipal - principalPayment

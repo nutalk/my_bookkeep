@@ -26,10 +26,14 @@ async function getDashboardData(userId: number) {
     (s, a) => s + (a.monthlyIncome ?? 0),
     0
   );
-  const monthlyExpense = allLiabilities.reduce(
-    (s, l) => s + l.monthlyPayment,
-    0
-  );
+  const monthlyExpense = allLiabilities.reduce((s, l) => {
+    const method = l.repaymentMethod || "equal_installment";
+    if (method === "equal_installment") return s + l.monthlyPayment;
+    if (method === "interest_only") {
+      return s + (l.remainingPrincipal * l.annualRate) / 12;
+    }
+    return s;
+  }, 0);
 
   return {
     totalAssets,

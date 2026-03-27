@@ -29,7 +29,14 @@ export async function GET() {
     const netWorth = totalAssets - totalLiabilities;
     const monthlyCashFlow =
       allAssets.reduce((sum, a) => sum + (a.monthlyIncome ?? 0), 0) -
-      allLiabilities.reduce((sum, l) => sum + l.monthlyPayment, 0);
+      allLiabilities.reduce((sum, l) => {
+        const method = l.repaymentMethod || "equal_installment";
+        if (method === "equal_installment") return sum + l.monthlyPayment;
+        if (method === "interest_only") {
+          return sum + (l.remainingPrincipal * l.annualRate) / 12;
+        }
+        return sum;
+      }, 0);
 
     const recentSnapshots = await db
       .select()

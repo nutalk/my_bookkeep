@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { LiabilityForm } from "@/components/Forms";
-import { formatMoney, getLiabilityTypeLabel } from "@/lib/utils";
+import { formatMoney, getLiabilityTypeLabel, getRepaymentMethodLabel } from "@/lib/utils";
 
 interface Liability {
   id: number;
@@ -11,6 +11,7 @@ interface Liability {
   totalPrincipal: number;
   remainingPrincipal: number;
   annualRate: number;
+  repaymentMethod: string;
   monthlyPayment: number;
   isActive: boolean;
   note: string | null;
@@ -104,8 +105,8 @@ export default function LiabilitiesPage() {
               <th className="text-left text-xs text-neutral-400 px-4 py-3 font-medium">
                 类型
               </th>
-              <th className="text-right text-xs text-neutral-400 px-4 py-3 font-medium">
-                总本金
+              <th className="text-left text-xs text-neutral-400 px-4 py-3 font-medium">
+                还款方式
               </th>
               <th className="text-right text-xs text-neutral-400 px-4 py-3 font-medium">
                 剩余本金
@@ -124,44 +125,46 @@ export default function LiabilitiesPage() {
           <tbody>
             {loading ? (
               <tr>
-                <td
-                  colSpan={7}
-                  className="text-center text-neutral-500 py-8 text-sm"
-                >
-                  加载中...
-                </td>
-              </tr>
-            ) : liabilities.length === 0 ? (
-              <tr>
-                <td
-                  colSpan={7}
-                  className="text-center text-neutral-500 py-8 text-sm"
-                >
-                  暂无负债记录，点击上方按钮添加
-                </td>
-              </tr>
-            ) : (
-              liabilities.map((l) => (
-                <tr
-                  key={l.id}
-                  className="border-b border-neutral-800/50 hover:bg-neutral-800/30"
-                >
-                  <td className="px-4 py-3 text-sm text-white">{l.name}</td>
-                  <td className="px-4 py-3 text-sm text-neutral-400">
-                    {getLiabilityTypeLabel(l.type)}
-                  </td>
-                  <td className="px-4 py-3 text-sm text-right text-neutral-400">
-                    {formatMoney(l.totalPrincipal)}
-                  </td>
-                  <td className="px-4 py-3 text-sm text-right text-red-400">
-                    {formatMoney(l.remainingPrincipal)}
-                  </td>
-                  <td className="px-4 py-3 text-sm text-right text-orange-400">
-                    {formatMoney(l.monthlyPayment)}
-                  </td>
-                  <td className="px-4 py-3 text-sm text-right text-neutral-400">
-                    {l.annualRate.toFixed(2)}%
-                  </td>
+              <td
+                   colSpan={7}
+                   className="text-center text-neutral-500 py-8 text-sm"
+                 >
+                   加载中...
+                 </td>
+               </tr>
+             ) : liabilities.length === 0 ? (
+               <tr>
+                 <td
+                   colSpan={7}
+                   className="text-center text-neutral-500 py-8 text-sm"
+                 >
+                   暂无负债记录，点击上方按钮添加
+                 </td>
+               </tr>
+             ) : (
+               liabilities.map((l) => (
+                 <tr
+                   key={l.id}
+                   className="border-b border-neutral-800/50 hover:bg-neutral-800/30"
+                 >
+                   <td className="px-4 py-3 text-sm text-white">{l.name}</td>
+                   <td className="px-4 py-3 text-sm text-neutral-400">
+                     {getLiabilityTypeLabel(l.type)}
+                   </td>
+                   <td className="px-4 py-3 text-sm text-neutral-400">
+                     {getRepaymentMethodLabel(l.repaymentMethod)}
+                   </td>
+                   <td className="px-4 py-3 text-sm text-right text-red-400">
+                     {formatMoney(l.remainingPrincipal)}
+                   </td>
+                   <td className="px-4 py-3 text-sm text-right text-orange-400">
+                     {l.repaymentMethod === "lump_sum"
+                       ? "-"
+                       : formatMoney(l.monthlyPayment)}
+                   </td>
+                   <td className="px-4 py-3 text-sm text-right text-neutral-400">
+                     {l.annualRate.toFixed(2)}%
+                   </td>
                   <td className="px-4 py-3 text-sm text-right">
                     <button
                       onClick={() => handleDelete(l.id)}

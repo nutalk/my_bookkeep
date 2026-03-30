@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { users } from "@/db/schema";
-import { eq, or } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import { createSession } from "@/lib/auth";
 import { cookies } from "next/headers";
@@ -72,9 +72,11 @@ export async function POST(request: Request) {
         nickname: nickname || phone.slice(0, 3) + "****" + phone.slice(7),
       },
     }, { status: 201 });
-  } catch {
+  } catch (err) {
+    console.error("Register error:", err);
+    const message = err instanceof Error ? err.message : "注册失败";
     return NextResponse.json(
-      { error: "注册失败" },
+      { error: `注册失败: ${message}` },
       { status: 500 }
     );
   }

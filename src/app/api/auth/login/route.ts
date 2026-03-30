@@ -66,9 +66,11 @@ export async function POST(request: Request) {
         avatarUrl: user.avatarUrl,
       },
     });
-  } catch {
+  } catch (err) {
+    console.error("Login error:", err);
+    const message = err instanceof Error ? err.message : "登录失败";
     return NextResponse.json(
-      { error: "登录失败" },
+      { error: `登录失败: ${message}` },
       { status: 500 }
     );
   }

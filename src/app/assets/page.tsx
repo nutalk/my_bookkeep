@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { AssetForm } from "@/components/Forms";
+import { BalanceChart } from "@/components/BalanceChart";
 import { formatMoney, formatDate, getAssetTypeLabel } from "@/lib/utils";
 
 interface Asset {
@@ -28,7 +29,7 @@ export default function AssetsPage() {
   const [assets, setAssets] = useState<Asset[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [selectedId, setSelectedId] = useState<number | null>(null);
   const [details, setDetails] = useState<Record<number, Transaction[]>>({});
 
   useEffect(() => {
@@ -39,36 +40,43 @@ export default function AssetsPage() {
         if (mounted) {
           setAssets(data);
           setLoading(false);
+          if (data.length > 0 && !selectedId) setSelectedId(data[0].id);
         }
       });
     return () => {
       mounted = false;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const fetchAssets = () => {
     fetch("/api/assets")
       .then((r) => r.json())
-      .then((data) => setAssets(data));
+      .then((data) => {
+        setAssets(data);
+        if (selectedId && !data.find((a: Asset) => a.id === selectedId)) {
+          setSelectedId(data.length > 0 ? data[0].id : null);
+        }
+      });
   };
 
   const handleDelete = async (id: number) => {
     if (!confirm("确定要删除这项资产吗？")) return;
     await fetch(`/api/assets?id=${id}`, { method: "DELETE" });
+    if (selectedId === id) setSelectedId(null);
     fetchAssets();
   };
 
-  const toggleDetails = async (assetId: number) => {
-    if (expandedId === assetId) {
-      setExpandedId(null);
-      return;
-    }
-    setExpandedId(assetId);
-    if (!details[assetId]) {
-      const res = await fetch(`/api/transactions?assetId=${assetId}&limit=20`);
-      const data = await res.json();
-      setDetails((d) => ({ ...d, [assetId]: data }));
-    }
+  const loadDetails = async (assetId: number) => {
+    if (details[assetId]) return;
+    const res = await fetch(`/api/transactions?assetId=${assetId}&limit=50`);
+    const data = await res.json();
+    setDetails((d) => ({ ...d, [assetId]: data }));
+  };
+
+  const handleSelect = (id: number) => {
+    setSelectedId(id);
+    loadDetails(id);
   };
 
   const txTypeLabel = (type: string) => {
@@ -81,18 +89,40 @@ export default function AssetsPage() {
     return map[type] ?? type;
   };
 
+  const selected = assets.find((a) => a.id === selectedId);
+  const selectedTxs = selectedId ? details[selectedId] ?? null : null;
+
+  // Build balance history chart data: reverse transactions to get oldest first,
+  // then compute running balance
+  const chartData = (() => {
+    if (!selected || !selectedTxs || selectedTxs.length === 0) return [];
+    const sorted = [...selectedTxs].reverse();
+    // Start from current value and walk backwards to compute historical balances
+    let balance = selected.currentValue;
+    const points: { label: string; value: number }[] = [];
+    for (let i = sorted.length - 1; i >= 0; i--) {
+      const t = sorted[i];
+      points.unshift({ label: formatDate(t.transactionDate), value: balance });
+      if (t.type === "income" || t.type === "asset_income") {
+        balance -= t.amount;
+      } else if (t.type === "expense") {
+        balance += t.amount;
+      }
+    }
+    // Add starting point
+    points.unshift({ label: "初始", value: Math.max(0, balance) });
+    // Keep last 12 points for readability
+    return points.slice(-12);
+  })();
+
   const totalValue = assets.reduce((s, a) => s + a.currentValue, 0);
   const totalIncome = assets.reduce((s, a) => s + (a.monthlyIncome ?? 0), 0);
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h2 className="text-2xl font-bold text-white">资产管理</h2>
-          <p className="text-sm text-neutral-400 mt-1">
-            管理所有资产，追踪价值和现金流
-          </p>
-        </div>
+    <div className="flex flex-col h-[calc(100vh-1rem)]">
+      {/* Header */}
+      <div className="flex justify-between items-center px-6 pt-4 pb-3 shrink-0">
+        <h2 className="text-2xl font-bold text-white">资产管理</h2>
         <button
           onClick={() => setShowForm(!showForm)}
           className="bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-4 py-2 text-sm font-medium transition-colors"
@@ -102,7 +132,7 @@ export default function AssetsPage() {
       </div>
 
       {showForm && (
-        <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-5">
+        <div className="mx-6 mb-3 bg-neutral-900 border border-neutral-800 rounded-xl p-5 shrink-0">
           <AssetForm
             onSuccess={() => {
               fetchAssets();
@@ -112,125 +142,201 @@ export default function AssetsPage() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-4">
-          <p className="text-sm text-neutral-400">资产总值</p>
-          <p className="text-xl font-bold text-green-400 mt-1">
-            {formatMoney(totalValue)}
-          </p>
-        </div>
-        <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-4">
-          <p className="text-sm text-neutral-400">月总收入</p>
-          <p className="text-xl font-bold text-blue-400 mt-1">
-            {formatMoney(totalIncome)}
-          </p>
-        </div>
-      </div>
+      {/* Main content: left list + right detail */}
+      <div className="flex flex-1 gap-4 px-6 pb-4 min-h-0">
+        {/* Left: list */}
+        <div className="w-72 shrink-0 flex flex-col">
+          {/* Summary */}
+          <div className="grid grid-cols-2 gap-3 mb-3 shrink-0">
+            <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-3">
+              <p className="text-xs text-neutral-400">资产总值</p>
+              <p className="text-base font-bold text-green-400 mt-0.5">
+                {formatMoney(totalValue)}
+              </p>
+            </div>
+            <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-3">
+              <p className="text-xs text-neutral-400">月收入</p>
+              <p className="text-base font-bold text-blue-400 mt-0.5">
+                {formatMoney(totalIncome)}
+              </p>
+            </div>
+          </div>
 
-      <div className="space-y-3">
-        {loading ? (
-          <div className="text-center text-neutral-500 py-8 text-sm">
-            加载中...
-          </div>
-        ) : assets.length === 0 ? (
-          <div className="text-center text-neutral-500 py-8 text-sm">
-            暂无资产记录，点击上方按钮添加
-          </div>
-        ) : (
-          assets.map((a) => (
-            <div
-              key={a.id}
-              className="bg-neutral-900 border border-neutral-800 rounded-xl overflow-hidden"
-            >
-              <div
-                className="flex items-center justify-between px-5 py-4 cursor-pointer hover:bg-neutral-800/30"
-                onClick={() => toggleDetails(a.id)}
-              >
-                <div className="flex items-center gap-4">
-                  <div>
-                    <p className="text-sm font-medium text-white">{a.name}</p>
-                    <p className="text-xs text-neutral-500 mt-0.5">
-                      {getAssetTypeLabel(a.type)}
-                      {(a.monthlyIncome ?? 0) > 0 && (
-                        <span className="ml-2">月入 {formatMoney(a.monthlyIncome!)}</span>
-                      )}
+          {/* List */}
+          <div className="flex-1 overflow-y-auto space-y-1 bg-neutral-900 border border-neutral-800 rounded-xl p-2">
+            {loading ? (
+              <p className="text-center text-neutral-500 py-8 text-sm">
+                加载中...
+              </p>
+            ) : assets.length === 0 ? (
+              <p className="text-center text-neutral-500 py-8 text-sm">
+                暂无资产
+              </p>
+            ) : (
+              assets.map((a) => (
+                <button
+                  key={a.id}
+                  onClick={() => handleSelect(a.id)}
+                  className={`w-full text-left px-3 py-2.5 rounded-lg transition-colors ${
+                    selectedId === a.id
+                      ? "bg-blue-600/20 border border-blue-600/40"
+                      : "hover:bg-neutral-800 border border-transparent"
+                  }`}
+                >
+                  <div className="flex justify-between items-center">
+                    <p className="text-sm font-medium text-white truncate">
+                      {a.name}
+                    </p>
+                    <p className="text-sm font-bold text-green-400 ml-2 whitespace-nowrap">
+                      {formatMoney(a.currentValue)}
                     </p>
                   </div>
-                </div>
-                <div className="flex items-center gap-4">
-                  <p className="text-sm font-bold text-green-400">
-                    {formatMoney(a.currentValue)}
+                  <p className="text-xs text-neutral-500 mt-0.5">
+                    {getAssetTypeLabel(a.type)}
+                    {(a.monthlyIncome ?? 0) > 0 && (
+                      <span className="ml-1.5">
+                        月入{formatMoney(a.monthlyIncome!)}
+                      </span>
+                    )}
                   </p>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDelete(a.id);
-                    }}
-                    className="text-red-400 hover:text-red-300 text-xs"
-                  >
-                    删除
-                  </button>
-                  <span
-                    className={`text-neutral-500 text-xs transition-transform ${
-                      expandedId === a.id ? "rotate-180" : ""
-                    }`}
-                  >
-                    ▼
-                  </span>
+                </button>
+              ))
+            )}
+          </div>
+        </div>
+
+        {/* Right: detail */}
+        <div className="flex-1 min-w-0 overflow-y-auto">
+          {!selected ? (
+            <div className="flex items-center justify-center h-full">
+              <p className="text-neutral-500 text-sm">
+                从左侧选择一项资产查看详情
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {/* Info cards */}
+              <div className="grid grid-cols-4 gap-3">
+                <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-4">
+                  <p className="text-xs text-neutral-400">当前价值</p>
+                  <p className="text-lg font-bold text-green-400 mt-1">
+                    {formatMoney(selected.currentValue)}
+                  </p>
+                </div>
+                <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-4">
+                  <p className="text-xs text-neutral-400">类型</p>
+                  <p className="text-lg font-bold text-white mt-1">
+                    {getAssetTypeLabel(selected.type)}
+                  </p>
+                </div>
+                <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-4">
+                  <p className="text-xs text-neutral-400">月收入</p>
+                  <p className="text-lg font-bold text-blue-400 mt-1">
+                    {formatMoney(selected.monthlyIncome ?? 0)}
+                  </p>
+                </div>
+                <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-4">
+                  <p className="text-xs text-neutral-400">年化收益率</p>
+                  <p className="text-lg font-bold text-white mt-1">
+                    {(selected.annualYield ?? 0).toFixed(2)}%
+                  </p>
                 </div>
               </div>
 
-              {expandedId === a.id && (
-                <div className="border-t border-neutral-800 px-5 py-3">
-                  {details[a.id] ? (
-                    details[a.id].length === 0 ? (
-                      <p className="text-xs text-neutral-500 py-2">暂无交易记录</p>
-                    ) : (
-                      <table className="w-full">
-                        <thead>
-                          <tr>
-                            <th className="text-left text-xs text-neutral-500 pb-2">日期</th>
-                            <th className="text-left text-xs text-neutral-500 pb-2">类型</th>
-                            <th className="text-left text-xs text-neutral-500 pb-2">描述</th>
-                            <th className="text-right text-xs text-neutral-500 pb-2">金额</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {details[a.id].map((t) => (
-                            <tr key={t.id} className="border-t border-neutral-800/50">
-                              <td className="py-2 text-xs text-neutral-400">
-                                {formatDate(t.transactionDate)}
-                                {t.isAutoGenerated && (
-                                  <span className="ml-1 text-neutral-600">自动</span>
-                                )}
-                              </td>
-                              <td className="py-2 text-xs text-neutral-400">
-                                {txTypeLabel(t.type)}
-                              </td>
-                              <td className="py-2 text-xs text-white">{t.description}</td>
-                              <td
-                                className={`py-2 text-xs text-right font-medium ${
-                                  ["income", "asset_income"].includes(t.type)
-                                    ? "text-green-400"
-                                    : "text-red-400"
-                                }`}
-                              >
-                                {["income", "asset_income"].includes(t.type) ? "+" : "-"}
-                                {formatMoney(Math.abs(t.amount))}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    )
-                  ) : (
-                    <p className="text-xs text-neutral-500 py-2">加载中...</p>
-                  )}
+              {/* Chart */}
+              {chartData.length > 1 && (
+                <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-4">
+                  <h3 className="text-sm font-medium text-white mb-3">
+                    余额变动趋势
+                  </h3>
+                  <BalanceChart data={chartData} color="green" />
                 </div>
               )}
+
+              {/* Transactions */}
+              <div className="bg-neutral-900 border border-neutral-800 rounded-xl overflow-hidden">
+                <div className="px-4 py-3 border-b border-neutral-800">
+                  <h3 className="text-sm font-medium text-white">交易明细</h3>
+                </div>
+                {selectedTxs ? (
+                  selectedTxs.length === 0 ? (
+                    <p className="text-center text-neutral-500 py-8 text-sm">
+                      暂无交易记录
+                    </p>
+                  ) : (
+                    <table className="w-full">
+                      <thead>
+                        <tr className="border-b border-neutral-800">
+                          <th className="text-left text-xs text-neutral-400 px-4 py-2">
+                            日期
+                          </th>
+                          <th className="text-left text-xs text-neutral-400 px-4 py-2">
+                            类型
+                          </th>
+                          <th className="text-left text-xs text-neutral-400 px-4 py-2">
+                            描述
+                          </th>
+                          <th className="text-right text-xs text-neutral-400 px-4 py-2">
+                            金额
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {selectedTxs.map((t) => (
+                          <tr
+                            key={t.id}
+                            className="border-b border-neutral-800/50"
+                          >
+                            <td className="px-4 py-2 text-xs text-neutral-400">
+                              {formatDate(t.transactionDate)}
+                              {t.isAutoGenerated && (
+                                <span className="ml-1 text-neutral-600">
+                                  自动
+                                </span>
+                              )}
+                            </td>
+                            <td className="px-4 py-2 text-xs text-neutral-400">
+                              {txTypeLabel(t.type)}
+                            </td>
+                            <td className="px-4 py-2 text-xs text-white">
+                              {t.description}
+                            </td>
+                            <td
+                              className={`px-4 py-2 text-xs text-right font-medium ${
+                                ["income", "asset_income"].includes(t.type)
+                                  ? "text-green-400"
+                                  : "text-red-400"
+                              }`}
+                            >
+                              {["income", "asset_income"].includes(t.type)
+                                ? "+"
+                                : "-"}
+                              {formatMoney(Math.abs(t.amount))}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )
+                ) : (
+                  <p className="text-center text-neutral-500 py-8 text-sm">
+                    加载中...
+                  </p>
+                )}
+              </div>
+
+              {/* Delete button */}
+              <div className="flex justify-end">
+                <button
+                  onClick={() => handleDelete(selected.id)}
+                  className="text-red-400 hover:text-red-300 text-xs border border-red-900/50 hover:border-red-800 rounded-lg px-3 py-1.5 transition-colors"
+                >
+                  删除此资产
+                </button>
+              </div>
             </div>
-          ))
-        )}
+          )}
+        </div>
       </div>
     </div>
   );

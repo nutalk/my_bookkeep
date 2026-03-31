@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { LiabilityForm } from "@/components/Forms";
+import { BalanceChart } from "@/components/BalanceChart";
 import {
   formatMoney,
   formatDate,
@@ -37,7 +38,7 @@ export default function LiabilitiesPage() {
   const [liabilities, setLiabilities] = useState<Liability[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [selectedId, setSelectedId] = useState<number | null>(null);
   const [details, setDetails] = useState<Record<number, Transaction[]>>({});
 
   useEffect(() => {
@@ -48,36 +49,43 @@ export default function LiabilitiesPage() {
         if (mounted) {
           setLiabilities(data);
           setLoading(false);
+          if (data.length > 0 && !selectedId) setSelectedId(data[0].id);
         }
       });
     return () => {
       mounted = false;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const fetchLiabilities = () => {
     fetch("/api/liabilities")
       .then((r) => r.json())
-      .then((data) => setLiabilities(data));
+      .then((data) => {
+        setLiabilities(data);
+        if (selectedId && !data.find((l: Liability) => l.id === selectedId)) {
+          setSelectedId(data.length > 0 ? data[0].id : null);
+        }
+      });
   };
 
   const handleDelete = async (id: number) => {
     if (!confirm("确定要删除这项负债吗？")) return;
     await fetch(`/api/liabilities?id=${id}`, { method: "DELETE" });
+    if (selectedId === id) setSelectedId(null);
     fetchLiabilities();
   };
 
-  const toggleDetails = async (liabilityId: number) => {
-    if (expandedId === liabilityId) {
-      setExpandedId(null);
-      return;
-    }
-    setExpandedId(liabilityId);
-    if (!details[liabilityId]) {
-      const res = await fetch(`/api/transactions?liabilityId=${liabilityId}&limit=20`);
-      const data = await res.json();
-      setDetails((d) => ({ ...d, [liabilityId]: data }));
-    }
+  const loadDetails = async (liabilityId: number) => {
+    if (details[liabilityId]) return;
+    const res = await fetch(`/api/transactions?liabilityId=${liabilityId}&limit=50`);
+    const data = await res.json();
+    setDetails((d) => ({ ...d, [liabilityId]: data }));
+  };
+
+  const handleSelect = (id: number) => {
+    setSelectedId(id);
+    loadDetails(id);
   };
 
   const txTypeLabel = (type: string) => {
@@ -88,21 +96,37 @@ export default function LiabilitiesPage() {
     return map[type] ?? type;
   };
 
-  const totalRemaining = liabilities.reduce(
-    (s, l) => s + l.remainingPrincipal,
-    0
-  );
+  const selected = liabilities.find((l) => l.id === selectedId);
+  const selectedTxs = selectedId ? details[selectedId] ?? null : null;
+
+  // Build balance history: walk transactions backwards from current remaining
+  const chartData = (() => {
+    if (!selected || !selectedTxs || selectedTxs.length === 0) return [];
+    const sorted = [...selectedTxs].reverse();
+    let balance = selected.remainingPrincipal;
+    const points: { label: string; value: number }[] = [];
+    for (let i = sorted.length - 1; i >= 0; i--) {
+      const t = sorted[i];
+      points.unshift({ label: formatDate(t.transactionDate), value: balance });
+      if (t.type === "liability_principal_change") {
+        balance -= t.amount; // borrowing increased balance, reverse it
+      } else if (t.type === "liability_repayment") {
+        const principalReduce = (t.principalPart ?? 0) > 0 ? t.principalPart : t.amount;
+        balance += principalReduce; // repayment decreased balance, reverse it
+      }
+    }
+    points.unshift({ label: "初始", value: Math.max(0, balance) });
+    return points.slice(-12);
+  })();
+
+  const totalRemaining = liabilities.reduce((s, l) => s + l.remainingPrincipal, 0);
   const totalPayment = liabilities.reduce((s, l) => s + l.monthlyPayment, 0);
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h2 className="text-2xl font-bold text-white">负债管理</h2>
-          <p className="text-sm text-neutral-400 mt-1">
-            管理所有负债，追踪还款和利息
-          </p>
-        </div>
+    <div className="flex flex-col h-[calc(100vh-1rem)]">
+      {/* Header */}
+      <div className="flex justify-between items-center px-6 pt-4 pb-3 shrink-0">
+        <h2 className="text-2xl font-bold text-white">负债管理</h2>
         <button
           onClick={() => setShowForm(!showForm)}
           className="bg-red-600 hover:bg-red-700 text-white rounded-lg px-4 py-2 text-sm font-medium transition-colors"
@@ -112,7 +136,7 @@ export default function LiabilitiesPage() {
       </div>
 
       {showForm && (
-        <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-5">
+        <div className="mx-6 mb-3 bg-neutral-900 border border-neutral-800 rounded-xl p-5 shrink-0">
           <LiabilityForm
             onSuccess={() => {
               fetchLiabilities();
@@ -122,135 +146,250 @@ export default function LiabilitiesPage() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-4">
-          <p className="text-sm text-neutral-400">负债总额</p>
-          <p className="text-xl font-bold text-red-400 mt-1">
-            {formatMoney(totalRemaining)}
-          </p>
-        </div>
-        <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-4">
-          <p className="text-sm text-neutral-400">月总还款</p>
-          <p className="text-xl font-bold text-orange-400 mt-1">
-            {formatMoney(totalPayment)}
-          </p>
-        </div>
-      </div>
+      {/* Main content */}
+      <div className="flex flex-1 gap-4 px-6 pb-4 min-h-0">
+        {/* Left: list */}
+        <div className="w-72 shrink-0 flex flex-col">
+          <div className="grid grid-cols-2 gap-3 mb-3 shrink-0">
+            <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-3">
+              <p className="text-xs text-neutral-400">负债总额</p>
+              <p className="text-base font-bold text-red-400 mt-0.5">
+                {formatMoney(totalRemaining)}
+              </p>
+            </div>
+            <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-3">
+              <p className="text-xs text-neutral-400">月还款</p>
+              <p className="text-base font-bold text-orange-400 mt-0.5">
+                {formatMoney(totalPayment)}
+              </p>
+            </div>
+          </div>
 
-      <div className="space-y-3">
-        {loading ? (
-          <div className="text-center text-neutral-500 py-8 text-sm">
-            加载中...
-          </div>
-        ) : liabilities.length === 0 ? (
-          <div className="text-center text-neutral-500 py-8 text-sm">
-            暂无负债记录，点击上方按钮添加
-          </div>
-        ) : (
-          liabilities.map((l) => (
-            <div
-              key={l.id}
-              className="bg-neutral-900 border border-neutral-800 rounded-xl overflow-hidden"
-            >
-              <div
-                className="flex items-center justify-between px-5 py-4 cursor-pointer hover:bg-neutral-800/30"
-                onClick={() => toggleDetails(l.id)}
-              >
-                <div>
-                  <p className="text-sm font-medium text-white">{l.name}</p>
-                  <p className="text-xs text-neutral-500 mt-0.5">
-                    {getLiabilityTypeLabel(l.type)} · {getRepaymentMethodLabel(l.repaymentMethod)}
-                    {l.repaymentMethod !== "lump_sum" && l.monthlyPayment > 0 && (
-                      <span className="ml-2">月还 {formatMoney(l.monthlyPayment)}</span>
-                    )}
-                  </p>
-                </div>
-                <div className="flex items-center gap-4">
-                  <div className="text-right">
-                    <p className="text-sm font-bold text-red-400">
+          <div className="flex-1 overflow-y-auto space-y-1 bg-neutral-900 border border-neutral-800 rounded-xl p-2">
+            {loading ? (
+              <p className="text-center text-neutral-500 py-8 text-sm">
+                加载中...
+              </p>
+            ) : liabilities.length === 0 ? (
+              <p className="text-center text-neutral-500 py-8 text-sm">
+                暂无负债
+              </p>
+            ) : (
+              liabilities.map((l) => (
+                <button
+                  key={l.id}
+                  onClick={() => handleSelect(l.id)}
+                  className={`w-full text-left px-3 py-2.5 rounded-lg transition-colors ${
+                    selectedId === l.id
+                      ? "bg-red-600/20 border border-red-600/40"
+                      : "hover:bg-neutral-800 border border-transparent"
+                  }`}
+                >
+                  <div className="flex justify-between items-center">
+                    <p className="text-sm font-medium text-white truncate">
+                      {l.name}
+                    </p>
+                    <p className="text-sm font-bold text-red-400 ml-2 whitespace-nowrap">
                       {formatMoney(l.remainingPrincipal)}
                     </p>
-                    <p className="text-xs text-neutral-500">
-                      利率 {l.annualRate.toFixed(2)}%
-                    </p>
                   </div>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDelete(l.id);
+                  <p className="text-xs text-neutral-500 mt-0.5">
+                    {getLiabilityTypeLabel(l.type)} · {getRepaymentMethodLabel(l.repaymentMethod)}
+                  </p>
+                </button>
+              ))
+            )}
+          </div>
+        </div>
+
+        {/* Right: detail */}
+        <div className="flex-1 min-w-0 overflow-y-auto">
+          {!selected ? (
+            <div className="flex items-center justify-center h-full">
+              <p className="text-neutral-500 text-sm">
+                从左侧选择一项负债查看详情
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {/* Info cards */}
+              <div className="grid grid-cols-4 gap-3">
+                <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-4">
+                  <p className="text-xs text-neutral-400">剩余本金</p>
+                  <p className="text-lg font-bold text-red-400 mt-1">
+                    {formatMoney(selected.remainingPrincipal)}
+                  </p>
+                </div>
+                <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-4">
+                  <p className="text-xs text-neutral-400">总本金</p>
+                  <p className="text-lg font-bold text-white mt-1">
+                    {formatMoney(selected.totalPrincipal)}
+                  </p>
+                </div>
+                <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-4">
+                  <p className="text-xs text-neutral-400">年利率</p>
+                  <p className="text-lg font-bold text-white mt-1">
+                    {selected.annualRate.toFixed(2)}%
+                  </p>
+                </div>
+                <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-4">
+                  <p className="text-xs text-neutral-400">
+                    {selected.repaymentMethod === "lump_sum"
+                      ? "到期还款"
+                      : "月还款"}
+                  </p>
+                  <p className="text-lg font-bold text-orange-400 mt-1">
+                    {selected.repaymentMethod === "lump_sum"
+                      ? "-"
+                      : formatMoney(selected.monthlyPayment)}
+                  </p>
+                </div>
+              </div>
+
+              {/* Progress */}
+              <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-4">
+                <div className="flex justify-between text-xs text-neutral-400 mb-2">
+                  <span>还款进度</span>
+                  <span>
+                    {selected.totalPrincipal > 0
+                      ? (
+                          ((selected.totalPrincipal - selected.remainingPrincipal) /
+                            selected.totalPrincipal) *
+                          100
+                        ).toFixed(1)
+                      : 0}
+                    % 已还
+                  </span>
+                </div>
+                <div className="w-full bg-neutral-800 rounded-full h-2">
+                  <div
+                    className="bg-green-500 h-2 rounded-full transition-all"
+                    style={{
+                      width: `${
+                        selected.totalPrincipal > 0
+                          ? Math.min(
+                              100,
+                              ((selected.totalPrincipal -
+                                selected.remainingPrincipal) /
+                                selected.totalPrincipal) *
+                                100
+                            )
+                          : 0
+                      }%`,
                     }}
-                    className="text-red-400 hover:text-red-300 text-xs"
-                  >
-                    删除
-                  </button>
-                  <span
-                    className={`text-neutral-500 text-xs transition-transform ${
-                      expandedId === l.id ? "rotate-180" : ""
-                    }`}
-                  >
-                    ▼
+                  />
+                </div>
+                <div className="flex justify-between text-xs text-neutral-500 mt-1.5">
+                  <span>
+                    已还 {formatMoney(selected.totalPrincipal - selected.remainingPrincipal)}
+                  </span>
+                  <span>
+                    剩余 {formatMoney(selected.remainingPrincipal)}
                   </span>
                 </div>
               </div>
 
-              {expandedId === l.id && (
-                <div className="border-t border-neutral-800 px-5 py-3">
-                  {details[l.id] ? (
-                    details[l.id].length === 0 ? (
-                      <p className="text-xs text-neutral-500 py-2">暂无交易记录</p>
-                    ) : (
-                      <table className="w-full">
-                        <thead>
-                          <tr>
-                            <th className="text-left text-xs text-neutral-500 pb-2">日期</th>
-                            <th className="text-left text-xs text-neutral-500 pb-2">类型</th>
-                            <th className="text-left text-xs text-neutral-500 pb-2">描述</th>
-                            <th className="text-right text-xs text-neutral-500 pb-2">金额</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {details[l.id].map((t) => (
-                            <tr key={t.id} className="border-t border-neutral-800/50">
-                              <td className="py-2 text-xs text-neutral-400">
-                                {formatDate(t.transactionDate)}
-                                {t.isAutoGenerated && (
-                                  <span className="ml-1 text-neutral-600">自动</span>
-                                )}
-                              </td>
-                              <td className="py-2 text-xs text-neutral-400">
-                                {txTypeLabel(t.type)}
-                              </td>
-                              <td className="py-2 text-xs text-white">
-                                {t.description}
-                                {t.type === "liability_repayment" && t.principalPart > 0 && (
-                                  <span className="text-neutral-500 ml-1">
-                                    本金{formatMoney(t.principalPart)}+利息{formatMoney(t.interestPart)}
-                                  </span>
-                                )}
-                              </td>
-                              <td
-                                className={`py-2 text-xs text-right font-medium ${
-                                  t.type === "liability_principal_change"
-                                    ? "text-orange-400"
-                                    : "text-red-400"
-                                }`}
-                              >
-                                {t.type === "liability_principal_change" ? "+" : "-"}
-                                {formatMoney(Math.abs(t.amount))}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    )
-                  ) : (
-                    <p className="text-xs text-neutral-500 py-2">加载中...</p>
-                  )}
+              {/* Chart */}
+              {chartData.length > 1 && (
+                <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-4">
+                  <h3 className="text-sm font-medium text-white mb-3">
+                    余额变动趋势
+                  </h3>
+                  <BalanceChart data={chartData} color="red" />
                 </div>
               )}
+
+              {/* Transactions */}
+              <div className="bg-neutral-900 border border-neutral-800 rounded-xl overflow-hidden">
+                <div className="px-4 py-3 border-b border-neutral-800">
+                  <h3 className="text-sm font-medium text-white">交易明细</h3>
+                </div>
+                {selectedTxs ? (
+                  selectedTxs.length === 0 ? (
+                    <p className="text-center text-neutral-500 py-8 text-sm">
+                      暂无交易记录
+                    </p>
+                  ) : (
+                    <table className="w-full">
+                      <thead>
+                        <tr className="border-b border-neutral-800">
+                          <th className="text-left text-xs text-neutral-400 px-4 py-2">
+                            日期
+                          </th>
+                          <th className="text-left text-xs text-neutral-400 px-4 py-2">
+                            类型
+                          </th>
+                          <th className="text-left text-xs text-neutral-400 px-4 py-2">
+                            描述
+                          </th>
+                          <th className="text-right text-xs text-neutral-400 px-4 py-2">
+                            金额
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {selectedTxs.map((t) => (
+                          <tr
+                            key={t.id}
+                            className="border-b border-neutral-800/50"
+                          >
+                            <td className="px-4 py-2 text-xs text-neutral-400">
+                              {formatDate(t.transactionDate)}
+                              {t.isAutoGenerated && (
+                                <span className="ml-1 text-neutral-600">
+                                  自动
+                                </span>
+                              )}
+                            </td>
+                            <td className="px-4 py-2 text-xs text-neutral-400">
+                              {txTypeLabel(t.type)}
+                            </td>
+                            <td className="px-4 py-2 text-xs text-white">
+                              {t.description}
+                              {t.type === "liability_repayment" &&
+                                t.principalPart > 0 && (
+                                  <span className="text-neutral-500 ml-1">
+                                    本{formatMoney(t.principalPart)}+息
+                                    {formatMoney(t.interestPart)}
+                                  </span>
+                                )}
+                            </td>
+                            <td
+                              className={`px-4 py-2 text-xs text-right font-medium ${
+                                t.type === "liability_principal_change"
+                                  ? "text-orange-400"
+                                  : "text-red-400"
+                              }`}
+                            >
+                              {t.type === "liability_principal_change"
+                                ? "+"
+                                : "-"}
+                              {formatMoney(Math.abs(t.amount))}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )
+                ) : (
+                  <p className="text-center text-neutral-500 py-8 text-sm">
+                    加载中...
+                  </p>
+                )}
+              </div>
+
+              {/* Delete */}
+              <div className="flex justify-end">
+                <button
+                  onClick={() => handleDelete(selected.id)}
+                  className="text-red-400 hover:text-red-300 text-xs border border-red-900/50 hover:border-red-800 rounded-lg px-3 py-1.5 transition-colors"
+                >
+                  删除此负债
+                </button>
+              </div>
             </div>
-          ))
-        )}
+          )}
+        </div>
       </div>
     </div>
   );

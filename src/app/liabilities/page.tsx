@@ -40,6 +40,21 @@ export default function LiabilitiesPage() {
   const [loading, setLoading] = useState(true);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [details, setDetails] = useState<Record<number, Transaction[]>>({});
+  const [editModal, setEditModal] = useState(false);
+  const [editForm, setEditForm] = useState({
+    name: "",
+    type: "mortgage",
+    totalPrincipal: "",
+    remainingPrincipal: "",
+    annualRate: "",
+    repaymentMethod: "equal_installment",
+    monthlyPayment: "",
+    paymentDay: "",
+    startDate: "",
+    endDate: "",
+    note: "",
+  });
+  const [editLoading, setEditLoading] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -86,6 +101,51 @@ export default function LiabilitiesPage() {
   const handleSelect = (id: number) => {
     setSelectedId(id);
     loadDetails(id);
+  };
+
+  const openEdit = (l: Liability) => {
+    setEditForm({
+      name: l.name,
+      type: l.type,
+      totalPrincipal: String(l.totalPrincipal),
+      remainingPrincipal: String(l.remainingPrincipal),
+      annualRate: String(l.annualRate),
+      repaymentMethod: l.repaymentMethod || "equal_installment",
+      monthlyPayment: String(l.monthlyPayment),
+      paymentDay: "",
+      startDate: "",
+      endDate: "",
+      note: l.note ?? "",
+    });
+    setEditModal(true);
+  };
+
+  const handleEditSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedId) return;
+    setEditLoading(true);
+    try {
+      await fetch("/api/liabilities", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: selectedId,
+          name: editForm.name,
+          type: editForm.type,
+          totalPrincipal: Number(editForm.totalPrincipal),
+          remainingPrincipal: Number(editForm.remainingPrincipal),
+          annualRate: Number(editForm.annualRate),
+          repaymentMethod: editForm.repaymentMethod,
+          monthlyPayment: Number(editForm.monthlyPayment),
+          paymentDay: editForm.paymentDay ? Number(editForm.paymentDay) : null,
+          note: editForm.note || null,
+        }),
+      });
+      setEditModal(false);
+      fetchLiabilities();
+    } finally {
+      setEditLoading(false);
+    }
   };
 
   const txTypeLabel = (type: string) => {
@@ -427,19 +487,161 @@ export default function LiabilitiesPage() {
                 )}
               </div>
 
-              {/* Delete */}
-              <div className="flex justify-end">
+              {/* Action buttons */}
+              <div className="flex justify-end gap-3">
+                <button
+                  onClick={() => openEdit(selected)}
+                  className="text-blue-400 hover:text-blue-300 text-xs border border-blue-900/50 hover:border-blue-800 rounded-lg px-3 py-1.5 transition-colors"
+                >
+                  编辑
+                </button>
                 <button
                   onClick={() => handleDelete(selected.id)}
                   className="text-red-400 hover:text-red-300 text-xs border border-red-900/50 hover:border-red-800 rounded-lg px-3 py-1.5 transition-colors"
                 >
-                  删除此负债
+                  删除
                 </button>
               </div>
             </div>
           )}
         </div>
       </div>
+
+      {/* Edit modal */}
+      {editModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setEditModal(false);
+          }}
+        >
+          <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-6 w-full max-w-md max-h-[85vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-bold text-white">编辑负债</h3>
+              <button
+                onClick={() => setEditModal(false)}
+                className="text-neutral-400 hover:text-white text-xl leading-none"
+              >
+                &times;
+              </button>
+            </div>
+            <form onSubmit={handleEditSubmit} className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm text-neutral-400 mb-1">名称</label>
+                  <input
+                    type="text"
+                    required
+                    value={editForm.name}
+                    onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                    className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-neutral-400 mb-1">类型</label>
+                  <select
+                    value={editForm.type}
+                    onChange={(e) => setEditForm({ ...editForm, type: e.target.value })}
+                    className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
+                  >
+                    <option value="mortgage">房贷</option>
+                    <option value="car_loan">车贷</option>
+                    <option value="credit_card">信用卡</option>
+                    <option value="personal_loan">个人贷款</option>
+                    <option value="other">其他</option>
+                  </select>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm text-neutral-400 mb-1">总本金 (元)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    required
+                    value={editForm.totalPrincipal}
+                    onChange={(e) => setEditForm({ ...editForm, totalPrincipal: e.target.value })}
+                    className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-neutral-400 mb-1">剩余本金 (元)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    required
+                    value={editForm.remainingPrincipal}
+                    onChange={(e) => setEditForm({ ...editForm, remainingPrincipal: e.target.value })}
+                    className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm text-neutral-400 mb-1">还款方式</label>
+                <select
+                  value={editForm.repaymentMethod}
+                  onChange={(e) => setEditForm({ ...editForm, repaymentMethod: e.target.value })}
+                  className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
+                >
+                  <option value="equal_installment">等额本息</option>
+                  <option value="interest_only">按月付息到期还本</option>
+                  <option value="lump_sum">一次性到期还本付息</option>
+                </select>
+              </div>
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-sm text-neutral-400 mb-1">年利率 (%)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={editForm.annualRate}
+                    onChange={(e) => setEditForm({ ...editForm, annualRate: e.target.value })}
+                    className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-neutral-400 mb-1">月还款 (元)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={editForm.monthlyPayment}
+                    onChange={(e) => setEditForm({ ...editForm, monthlyPayment: e.target.value })}
+                    className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
+                    disabled={editForm.repaymentMethod === "lump_sum"}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-neutral-400 mb-1">还款日</label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="31"
+                    value={editForm.paymentDay}
+                    onChange={(e) => setEditForm({ ...editForm, paymentDay: e.target.value })}
+                    className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm text-neutral-400 mb-1">备注</label>
+                <input
+                  type="text"
+                  value={editForm.note}
+                  onChange={(e) => setEditForm({ ...editForm, note: e.target.value })}
+                  className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={editLoading}
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-4 py-2.5 text-sm font-medium transition-colors disabled:opacity-50"
+              >
+                {editLoading ? "保存中..." : "保存修改"}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

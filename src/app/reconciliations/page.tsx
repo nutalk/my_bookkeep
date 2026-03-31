@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { formatMoney, formatDate } from "@/lib/utils";
+import { DateInput } from "@/components/DateInput";
 
 interface Reconciliation {
   id: number;
@@ -184,14 +185,10 @@ export default function ReconciliationsPage() {
                 <label className="block text-sm text-neutral-400 mb-1">
                   对账日期
                 </label>
-                <input
-                  type="date"
-                  required
+                <DateInput
                   value={form.reconciliationDate}
-                  onChange={(e) =>
-                    setForm({ ...form, reconciliationDate: e.target.value })
-                  }
-                  className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
+                  onChange={(v) => setForm({ ...form, reconciliationDate: v })}
+                  required
                 />
               </div>
             </div>

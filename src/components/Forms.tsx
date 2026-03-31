@@ -200,6 +200,29 @@ export function LiabilityForm({ onSuccess }: { onSuccess?: () => void }) {
     note: "",
   });
   const [calcMonths, setCalcMonths] = useState("12");
+  const [autoEndDate, setAutoEndDate] = useState(true);
+
+  const handleStartDateChange = (value: string) => {
+    setForm((f) => ({ ...f, startDate: value }));
+    if (value && autoEndDate) {
+      const start = new Date(value);
+      const months = Number(calcMonths) || 12;
+      start.setMonth(start.getMonth() + months);
+      const endStr = start.toISOString().slice(0, 10);
+      setForm((f) => ({ ...f, startDate: value, endDate: endStr }));
+    }
+  };
+
+  const handleCalcMonthsChange = (value: string) => {
+    setCalcMonths(value);
+    if (form.startDate && autoEndDate) {
+      const start = new Date(form.startDate);
+      const months = Number(value) || 12;
+      start.setMonth(start.getMonth() + months);
+      const endStr = start.toISOString().slice(0, 10);
+      setForm((f) => ({ ...f, endDate: endStr }));
+    }
+  };
 
   const handleAutoCalc = () => {
     const principal = Number(form.remainingPrincipal || form.totalPrincipal);
@@ -240,6 +263,8 @@ export function LiabilityForm({ onSuccess }: { onSuccess?: () => void }) {
           endDate: "",
           note: "",
         });
+        setCalcMonths("12");
+        setAutoEndDate(true);
         onSuccess?.();
         router.refresh();
       }
@@ -371,13 +396,13 @@ export function LiabilityForm({ onSuccess }: { onSuccess?: () => void }) {
         <div className="flex items-end gap-3">
           <div className="flex-1">
             <label className="block text-sm text-neutral-400 mb-1">
-              计算期数 (月)
+              贷款期数 (月)
             </label>
             <input
               type="number"
               min="1"
               value={calcMonths}
-              onChange={(e) => setCalcMonths(e.target.value)}
+              onChange={(e) => handleCalcMonthsChange(e.target.value)}
               className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
             />
           </div>
@@ -396,18 +421,42 @@ export function LiabilityForm({ onSuccess }: { onSuccess?: () => void }) {
           <input
             type="date"
             value={form.startDate}
-            onChange={(e) => setForm({ ...form, startDate: e.target.value })}
-            className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
+            onChange={(e) => handleStartDateChange(e.target.value)}
+            className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500 [color-scheme:dark]"
           />
         </div>
         <div>
-          <label className="block text-sm text-neutral-400 mb-1">结束日期</label>
+          <div className="flex items-center justify-between mb-1">
+            <label className="text-sm text-neutral-400">结束日期</label>
+            <button
+              type="button"
+              onClick={() => setAutoEndDate(!autoEndDate)}
+              className={`text-xs px-2 py-0.5 rounded transition-colors ${
+                autoEndDate
+                  ? "bg-blue-900/40 text-blue-400"
+                  : "bg-neutral-800 text-neutral-500"
+              }`}
+            >
+              {autoEndDate ? "自动" : "手动"}
+            </button>
+          </div>
           <input
             type="date"
             value={form.endDate}
-            onChange={(e) => setForm({ ...form, endDate: e.target.value })}
-            className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
+            onChange={(e) => {
+              setAutoEndDate(false);
+              setForm({ ...form, endDate: e.target.value });
+            }}
+            readOnly={autoEndDate}
+            className={`w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500 [color-scheme:dark] ${
+              autoEndDate ? "opacity-60 cursor-not-allowed" : ""
+            }`}
           />
+          {autoEndDate && form.startDate && (
+            <p className="text-xs text-neutral-500 mt-1">
+              开始日期 + {calcMonths} 个月
+            </p>
+          )}
         </div>
       </div>
       <button

@@ -486,7 +486,6 @@ export function TransactionForm({ onSuccess }: { onSuccess?: () => void }) {
     transactionDate: new Date().toISOString().slice(0, 10),
     assetId: "",
     liabilityId: "",
-    note: "",
   });
 
   useState(() => {
@@ -527,17 +526,19 @@ export function TransactionForm({ onSuccess }: { onSuccess?: () => void }) {
     try {
       const body: Record<string, unknown> = {
         type: form.type,
-        amount: Number(form.amount),
         description: form.description,
         transactionDate: form.transactionDate,
-        note: form.note || null,
       };
       if (accountType === "asset") {
+        body.amount = Number(form.amount);
         body.assetId = form.assetId ? Number(form.assetId) : null;
       } else {
         body.liabilityId = form.liabilityId ? Number(form.liabilityId) : null;
         body.principalPart = form.principalPart ? Number(form.principalPart) : 0;
         body.interestPart = form.interestPart ? Number(form.interestPart) : 0;
+        body.amount =
+          (form.principalPart ? Number(form.principalPart) : 0) +
+          (form.interestPart ? Number(form.interestPart) : 0);
       }
 
       const res = await fetch("/api/transactions", {
@@ -555,7 +556,6 @@ export function TransactionForm({ onSuccess }: { onSuccess?: () => void }) {
           transactionDate: new Date().toISOString().slice(0, 10),
           assetId: "",
           liabilityId: "",
-          note: "",
         });
         setStep(1);
         onSuccess?.();
@@ -648,26 +648,14 @@ export function TransactionForm({ onSuccess }: { onSuccess?: () => void }) {
             </div>
           </div>
 
-          <div>
-            <label className="block text-sm text-neutral-400 mb-1">金额 (元)</label>
-            <input
-              type="number"
-              step="0.01"
-              required
-              value={form.amount}
-              onChange={(e) => setForm({ ...form, amount: e.target.value })}
-              className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
-              placeholder="0.00"
-            />
-          </div>
-
-          {accountType === "liability" && form.type === "liability_repayment" && (
+          {accountType === "liability" && form.type === "liability_repayment" ? (
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm text-neutral-400 mb-1">本金部分 (元)</label>
+                <label className="block text-sm text-neutral-400 mb-1">本金 (元)</label>
                 <input
                   type="number"
                   step="0.01"
+                  required
                   value={form.principalPart}
                   onChange={(e) => setForm({ ...form, principalPart: e.target.value })}
                   className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
@@ -675,51 +663,59 @@ export function TransactionForm({ onSuccess }: { onSuccess?: () => void }) {
                 />
               </div>
               <div>
-                <label className="block text-sm text-neutral-400 mb-1">利息部分 (元)</label>
+                <label className="block text-sm text-neutral-400 mb-1">利息 (元)</label>
                 <input
                   type="number"
                   step="0.01"
+                  required
                   value={form.interestPart}
                   onChange={(e) => setForm({ ...form, interestPart: e.target.value })}
                   className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
                   placeholder="0.00"
                 />
               </div>
+              <div className="col-span-2">
+                <p className="text-xs text-neutral-500">
+                  还款总额: {(Number(form.principalPart || 0) + Number(form.interestPart || 0)).toLocaleString("zh-CN", { style: "currency", currency: "CNY" })}
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div>
+              <label className="block text-sm text-neutral-400 mb-1">金额 (元)</label>
+              <input
+                type="number"
+                step="0.01"
+                required
+                value={form.amount}
+                onChange={(e) => setForm({ ...form, amount: e.target.value })}
+                className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
+                placeholder="0.00"
+              />
             </div>
           )}
 
-          <div>
-            <label className="block text-sm text-neutral-400 mb-1">描述</label>
-            <input
-              type="text"
-              required
-              value={form.description}
-              onChange={(e) => setForm({ ...form, description: e.target.value })}
-              className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
-              placeholder="简要描述"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm text-neutral-400 mb-1">日期</label>
-            <input
-              type="date"
-              required
-              value={form.transactionDate}
-              onChange={(e) => setForm({ ...form, transactionDate: e.target.value })}
-              className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm text-neutral-400 mb-1">备注</label>
-            <input
-              type="text"
-              value={form.note}
-              onChange={(e) => setForm({ ...form, note: e.target.value })}
-              className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
-              placeholder="可选"
-            />
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm text-neutral-400 mb-1">描述</label>
+              <input
+                type="text"
+                value={form.description}
+                onChange={(e) => setForm({ ...form, description: e.target.value })}
+                className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
+                placeholder="可选"
+              />
+            </div>
+            <div>
+              <label className="block text-sm text-neutral-400 mb-1">日期</label>
+              <input
+                type="date"
+                required
+                value={form.transactionDate}
+                onChange={(e) => setForm({ ...form, transactionDate: e.target.value })}
+                className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
+              />
+            </div>
           </div>
 
           <button

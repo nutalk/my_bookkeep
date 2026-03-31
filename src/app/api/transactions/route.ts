@@ -81,20 +81,57 @@ export async function POST(request: Request) {
       .from(transactions)
       .where(eq(transactions.id, insertId));
 
+    // 资产收入：余额增加
+    if (tx.type === "income" && tx.assetId) {
+      const [asset] = await db
+        .select()
+        .from(assets)
+        .where(and(eq(assets.id, tx.assetId), eq(assets.userId, user.id)));
+      if (asset) {
+        await db
+          .update(assets)
+          .set({
+            currentValue: asset.currentValue + tx.amount,
+            updatedAt: new Date(),
+          })
+          .where(and(eq(assets.id, tx.assetId), eq(assets.userId, user.id)));
+      }
+    }
+
+    // 资产支出：余额减少
+    if (tx.type === "expense" && tx.assetId) {
+      const [asset] = await db
+        .select()
+        .from(assets)
+        .where(and(eq(assets.id, tx.assetId), eq(assets.userId, user.id)));
+      if (asset) {
+        await db
+          .update(assets)
+          .set({
+            currentValue: asset.currentValue - tx.amount,
+            updatedAt: new Date(),
+          })
+          .where(and(eq(assets.id, tx.assetId), eq(assets.userId, user.id)));
+      }
+    }
+
+    // 资产价值直接变动
     if (tx.type === "asset_value_change" && tx.assetId) {
       await db
         .update(assets)
-        .set({ currentValue: body.newAssetValue ?? body.amount, updatedAt: new Date() })
+        .set({ currentValue: body.newAssetValue ?? tx.amount, updatedAt: new Date() })
         .where(and(eq(assets.id, tx.assetId), eq(assets.userId, user.id)));
     }
 
+    // 负债还款：剩余本金减少
     if (tx.type === "liability_repayment" && tx.liabilityId) {
-      const currentLiability = await db
+      const [currentLiability] = await db
         .select()
         .from(liabilities)
         .where(and(eq(liabilities.id, tx.liabilityId), eq(liabilities.userId, user.id)));
-      if (currentLiability.length) {
-        const newRemaining = currentLiability[0].remainingPrincipal - (tx.principalPart ?? 0);
+      if (currentLiability) {
+        const principalReduce = (tx.principalPart ?? 0) > 0 ? tx.principalPart! : tx.amount;
+        const newRemaining = currentLiability.remainingPrincipal - principalReduce;
         await db
           .update(liabilities)
           .set({
@@ -105,13 +142,14 @@ export async function POST(request: Request) {
       }
     }
 
+    // 负债借款：剩余本金增加
     if (tx.type === "liability_principal_change" && tx.liabilityId) {
-      const currentLiability = await db
+      const [currentLiability] = await db
         .select()
         .from(liabilities)
         .where(and(eq(liabilities.id, tx.liabilityId), eq(liabilities.userId, user.id)));
-      if (currentLiability.length) {
-        const newRemaining = currentLiability[0].remainingPrincipal + tx.amount;
+      if (currentLiability) {
+        const newRemaining = currentLiability.remainingPrincipal + tx.amount;
         await db
           .update(liabilities)
           .set({

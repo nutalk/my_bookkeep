@@ -92,26 +92,71 @@ export default function AssetsPage() {
   const selected = assets.find((a) => a.id === selectedId);
   const selectedTxs = selectedId ? details[selectedId] ?? null : null;
 
-  // Build balance history chart data: reverse transactions to get oldest first,
-  // then compute running balance
-  const chartData = (() => {
+  // Compute running balances for transaction table (oldest-first)
+  const txsWithBalance = (() => {
     if (!selected || !selectedTxs || selectedTxs.length === 0) return [];
-    const sorted = [...selectedTxs].reverse();
-    // Start from current value and walk backwards to compute historical balances
+    const sorted = [...selectedTxs].reverse(); // oldest first
+    // Walk backwards from current to get initial balance
     let balance = selected.currentValue;
-    const points: { label: string; value: number }[] = [];
     for (let i = sorted.length - 1; i >= 0; i--) {
       const t = sorted[i];
-      points.unshift({ label: formatDate(t.transactionDate), value: balance });
       if (t.type === "income" || t.type === "asset_income") {
         balance -= t.amount;
       } else if (t.type === "expense") {
         balance += t.amount;
       }
     }
-    // Add starting point
-    points.unshift({ label: "初始", value: Math.max(0, balance) });
-    // Keep last 12 points for readability
+    // Walk forward computing balance after each transaction
+    const result: (Transaction & { balance: number })[] = [];
+    for (const t of sorted) {
+      if (t.type === "income" || t.type === "asset_income") {
+        balance += t.amount;
+      } else if (t.type === "expense") {
+        balance -= t.amount;
+      }
+      result.push({ ...t, balance });
+    }
+    return result.reverse(); // newest first for display
+  })();
+
+  // Monthly chart data: group transactions by month, show ending balance per month
+  const chartData = (() => {
+    if (!selected || !selectedTxs || selectedTxs.length === 0) return [];
+    const sorted = [...selectedTxs].reverse(); // oldest first
+    // Compute initial balance
+    let balance = selected.currentValue;
+    for (let i = sorted.length - 1; i >= 0; i--) {
+      const t = sorted[i];
+      if (t.type === "income" || t.type === "asset_income") {
+        balance -= t.amount;
+      } else if (t.type === "expense") {
+        balance += t.amount;
+      }
+    }
+    // Walk forward, track ending balance per month
+    const monthMap = new Map<string, number>();
+    // Add initial month
+    if (sorted.length > 0) {
+      const d = new Date(sorted[0].transactionDate);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      monthMap.set(key, balance);
+    }
+    for (const t of sorted) {
+      if (t.type === "income" || t.type === "asset_income") {
+        balance += t.amount;
+      } else if (t.type === "expense") {
+        balance -= t.amount;
+      }
+      const d = new Date(t.transactionDate);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      monthMap.set(key, balance);
+    }
+    const points = Array.from(monthMap.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([month, value]) => {
+        const [y, m] = month.split("-");
+        return { label: `${y.slice(2)}/${m}`, value };
+      });
     return points.slice(-12);
   })();
 
@@ -258,8 +303,7 @@ export default function AssetsPage() {
                 <div className="px-4 py-3 border-b border-neutral-800">
                   <h3 className="text-sm font-medium text-white">交易明细</h3>
                 </div>
-                {selectedTxs ? (
-                  selectedTxs.length === 0 ? (
+                {txsWithBalance.length === 0 ? (
                     <p className="text-center text-neutral-500 py-8 text-sm">
                       暂无交易记录
                     </p>
@@ -279,10 +323,13 @@ export default function AssetsPage() {
                           <th className="text-right text-xs text-neutral-400 px-4 py-2">
                             金额
                           </th>
+                          <th className="text-right text-xs text-neutral-400 px-4 py-2">
+                            余额
+                          </th>
                         </tr>
                       </thead>
                       <tbody>
-                        {selectedTxs.map((t) => (
+                        {txsWithBalance.map((t) => (
                           <tr
                             key={t.id}
                             className="border-b border-neutral-800/50"
@@ -313,16 +360,15 @@ export default function AssetsPage() {
                                 : "-"}
                               {formatMoney(Math.abs(t.amount))}
                             </td>
+                            <td className="px-4 py-2 text-xs text-right text-white font-medium">
+                              {formatMoney(t.balance)}
+                            </td>
                           </tr>
                         ))}
                       </tbody>
                     </table>
                   )
-                ) : (
-                  <p className="text-center text-neutral-500 py-8 text-sm">
-                    加载中...
-                  </p>
-                )}
+                }
               </div>
 
               {/* Delete button */}

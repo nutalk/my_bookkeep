@@ -99,23 +99,72 @@ export default function LiabilitiesPage() {
   const selected = liabilities.find((l) => l.id === selectedId);
   const selectedTxs = selectedId ? details[selectedId] ?? null : null;
 
-  // Build balance history: walk transactions backwards from current remaining
+  // Compute running balances for transaction table (oldest-first)
+  const txsWithBalance = (() => {
+    if (!selected || !selectedTxs || selectedTxs.length === 0) return [];
+    const sorted = [...selectedTxs].reverse();
+    // Walk backwards from current to get initial balance
+    let balance = selected.remainingPrincipal;
+    for (let i = sorted.length - 1; i >= 0; i--) {
+      const t = sorted[i];
+      if (t.type === "liability_principal_change") {
+        balance -= t.amount;
+      } else if (t.type === "liability_repayment") {
+        const pr = (t.principalPart ?? 0) > 0 ? t.principalPart : t.amount;
+        balance += pr;
+      }
+    }
+    // Walk forward
+    const result: (Transaction & { balance: number })[] = [];
+    for (const t of sorted) {
+      if (t.type === "liability_principal_change") {
+        balance += t.amount;
+      } else if (t.type === "liability_repayment") {
+        const pr = (t.principalPart ?? 0) > 0 ? t.principalPart : t.amount;
+        balance -= pr;
+      }
+      result.push({ ...t, balance });
+    }
+    return result.reverse();
+  })();
+
+  // Monthly chart data
   const chartData = (() => {
     if (!selected || !selectedTxs || selectedTxs.length === 0) return [];
     const sorted = [...selectedTxs].reverse();
     let balance = selected.remainingPrincipal;
-    const points: { label: string; value: number }[] = [];
     for (let i = sorted.length - 1; i >= 0; i--) {
       const t = sorted[i];
-      points.unshift({ label: formatDate(t.transactionDate), value: balance });
       if (t.type === "liability_principal_change") {
-        balance -= t.amount; // borrowing increased balance, reverse it
+        balance -= t.amount;
       } else if (t.type === "liability_repayment") {
-        const principalReduce = (t.principalPart ?? 0) > 0 ? t.principalPart : t.amount;
-        balance += principalReduce; // repayment decreased balance, reverse it
+        const pr = (t.principalPart ?? 0) > 0 ? t.principalPart : t.amount;
+        balance += pr;
       }
     }
-    points.unshift({ label: "初始", value: Math.max(0, balance) });
+    const monthMap = new Map<string, number>();
+    if (sorted.length > 0) {
+      const d = new Date(sorted[0].transactionDate);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      monthMap.set(key, balance);
+    }
+    for (const t of sorted) {
+      if (t.type === "liability_principal_change") {
+        balance += t.amount;
+      } else if (t.type === "liability_repayment") {
+        const pr = (t.principalPart ?? 0) > 0 ? t.principalPart : t.amount;
+        balance -= pr;
+      }
+      const d = new Date(t.transactionDate);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      monthMap.set(key, balance);
+    }
+    const points = Array.from(monthMap.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([month, value]) => {
+        const [y, m] = month.split("-");
+        return { label: `${y.slice(2)}/${m}`, value };
+      });
     return points.slice(-12);
   })();
 
@@ -304,77 +353,77 @@ export default function LiabilitiesPage() {
                 <div className="px-4 py-3 border-b border-neutral-800">
                   <h3 className="text-sm font-medium text-white">交易明细</h3>
                 </div>
-                {selectedTxs ? (
-                  selectedTxs.length === 0 ? (
-                    <p className="text-center text-neutral-500 py-8 text-sm">
-                      暂无交易记录
-                    </p>
-                  ) : (
-                    <table className="w-full">
-                      <thead>
-                        <tr className="border-b border-neutral-800">
-                          <th className="text-left text-xs text-neutral-400 px-4 py-2">
-                            日期
-                          </th>
-                          <th className="text-left text-xs text-neutral-400 px-4 py-2">
-                            类型
-                          </th>
-                          <th className="text-left text-xs text-neutral-400 px-4 py-2">
-                            描述
-                          </th>
-                          <th className="text-right text-xs text-neutral-400 px-4 py-2">
-                            金额
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {selectedTxs.map((t) => (
-                          <tr
-                            key={t.id}
-                            className="border-b border-neutral-800/50"
-                          >
-                            <td className="px-4 py-2 text-xs text-neutral-400">
-                              {formatDate(t.transactionDate)}
-                              {t.isAutoGenerated && (
-                                <span className="ml-1 text-neutral-600">
-                                  自动
+                {txsWithBalance.length === 0 ? (
+                  <p className="text-center text-neutral-500 py-8 text-sm">
+                    暂无交易记录
+                  </p>
+                ) : (
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b border-neutral-800">
+                        <th className="text-left text-xs text-neutral-400 px-4 py-2">
+                          日期
+                        </th>
+                        <th className="text-left text-xs text-neutral-400 px-4 py-2">
+                          类型
+                        </th>
+                        <th className="text-left text-xs text-neutral-400 px-4 py-2">
+                          描述
+                        </th>
+                        <th className="text-right text-xs text-neutral-400 px-4 py-2">
+                          金额
+                        </th>
+                        <th className="text-right text-xs text-neutral-400 px-4 py-2">
+                          余额
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {txsWithBalance.map((t) => (
+                        <tr
+                          key={t.id}
+                          className="border-b border-neutral-800/50"
+                        >
+                          <td className="px-4 py-2 text-xs text-neutral-400">
+                            {formatDate(t.transactionDate)}
+                            {t.isAutoGenerated && (
+                              <span className="ml-1 text-neutral-600">
+                                自动
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-4 py-2 text-xs text-neutral-400">
+                            {txTypeLabel(t.type)}
+                          </td>
+                          <td className="px-4 py-2 text-xs text-white">
+                            {t.description}
+                            {t.type === "liability_repayment" &&
+                              t.principalPart > 0 && (
+                                <span className="text-neutral-500 ml-1">
+                                  本{formatMoney(t.principalPart)}+息
+                                  {formatMoney(t.interestPart)}
                                 </span>
                               )}
-                            </td>
-                            <td className="px-4 py-2 text-xs text-neutral-400">
-                              {txTypeLabel(t.type)}
-                            </td>
-                            <td className="px-4 py-2 text-xs text-white">
-                              {t.description}
-                              {t.type === "liability_repayment" &&
-                                t.principalPart > 0 && (
-                                  <span className="text-neutral-500 ml-1">
-                                    本{formatMoney(t.principalPart)}+息
-                                    {formatMoney(t.interestPart)}
-                                  </span>
-                                )}
-                            </td>
-                            <td
-                              className={`px-4 py-2 text-xs text-right font-medium ${
-                                t.type === "liability_principal_change"
-                                  ? "text-orange-400"
-                                  : "text-red-400"
-                              }`}
-                            >
-                              {t.type === "liability_principal_change"
-                                ? "+"
-                                : "-"}
-                              {formatMoney(Math.abs(t.amount))}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  )
-                ) : (
-                  <p className="text-center text-neutral-500 py-8 text-sm">
-                    加载中...
-                  </p>
+                          </td>
+                          <td
+                            className={`px-4 py-2 text-xs text-right font-medium ${
+                              t.type === "liability_principal_change"
+                                ? "text-orange-400"
+                                : "text-red-400"
+                            }`}
+                          >
+                            {t.type === "liability_principal_change"
+                              ? "+"
+                              : "-"}
+                            {formatMoney(Math.abs(t.amount))}
+                          </td>
+                          <td className="px-4 py-2 text-xs text-right text-white font-medium">
+                            {formatMoney(t.balance)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 )}
               </div>
 

@@ -289,7 +289,7 @@ export default function AssetsPage() {
               </div>
 
               {/* Chart */}
-              {chartData.length > 1 && (
+              {chartData.length > 0 && (
                 <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-4">
                   <h3 className="text-sm font-medium text-white mb-3">
                     余额变动趋势

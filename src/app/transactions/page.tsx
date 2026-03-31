@@ -22,7 +22,7 @@ interface Transaction {
 
 export default function TransactionsPage() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [showForm, setShowForm] = useState(false);
+  const [showModal, setShowModal] = useState(false);
   const [loading, setLoading] = useState(true);
   const [typeFilter, setTypeFilter] = useState("");
   const [refreshKey, setRefreshKey] = useState(0);
@@ -47,36 +47,59 @@ export default function TransactionsPage() {
   const fetchTransactions = () => setRefreshKey((k) => k + 1);
 
   const handleDelete = async (id: number) => {
-    if (!confirm("确定要删除这条账目吗？")) return;
+    if (!confirm("确定要删除这条记录吗？")) return;
     await fetch(`/api/transactions?id=${id}`, { method: "DELETE" });
     fetchTransactions();
+  };
+
+  const typeColor = (type: string) => {
+    if (["income", "asset_income"].includes(type)) return "text-green-400";
+    if (["expense", "liability_repayment"].includes(type)) return "text-red-400";
+    return "text-blue-400";
   };
 
   return (
     <div className="p-6 space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h2 className="text-2xl font-bold text-white">账目记录</h2>
+          <h2 className="text-2xl font-bold text-white">记账</h2>
           <p className="text-sm text-neutral-400 mt-1">
-            记录所有收支和资产负债变动
+            记录收支和资产负债变动
           </p>
         </div>
         <button
-          onClick={() => setShowForm(!showForm)}
+          onClick={() => setShowModal(true)}
           className="bg-green-600 hover:bg-green-700 text-white rounded-lg px-4 py-2 text-sm font-medium transition-colors"
         >
-          {showForm ? "收起" : "+ 记一笔"}
+          + 记一笔
         </button>
       </div>
 
-      {showForm && (
-        <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-5">
-          <TransactionForm
-            onSuccess={() => {
-              fetchTransactions();
-              setShowForm(false);
-            }}
-          />
+      {/* Modal */}
+      {showModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setShowModal(false);
+          }}
+        >
+          <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-6 w-full max-w-md max-h-[85vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-bold text-white">记一笔</h3>
+              <button
+                onClick={() => setShowModal(false)}
+                className="text-neutral-400 hover:text-white text-xl leading-none"
+              >
+                &times;
+              </button>
+            </div>
+            <TransactionForm
+              onSuccess={() => {
+                fetchTransactions();
+                setShowModal(false);
+              }}
+            />
+          </div>
         </div>
       )}
 
@@ -85,8 +108,8 @@ export default function TransactionsPage() {
           { value: "", label: "全部" },
           { value: "income", label: "收入" },
           { value: "expense", label: "支出" },
-          { value: "asset_value_change", label: "资产变动" },
           { value: "liability_repayment", label: "还款" },
+          { value: "liability_principal_change", label: "借款" },
         ].map((f) => (
           <button
             key={f.value}
@@ -142,7 +165,7 @@ export default function TransactionsPage() {
                   colSpan={5}
                   className="text-center text-neutral-500 py-8 text-sm"
                 >
-                  暂无账目记录
+                  暂无记录，点击上方「记一笔」开始
                 </td>
               </tr>
             ) : (
@@ -159,7 +182,7 @@ export default function TransactionsPage() {
                       </span>
                     )}
                   </td>
-                  <td className="px-4 py-3 text-sm text-neutral-300">
+                  <td className={`px-4 py-3 text-sm ${typeColor(t.type)}`}>
                     {getTransactionTypeLabel(t.type)}
                   </td>
                   <td className="px-4 py-3 text-sm text-white">
@@ -171,17 +194,11 @@ export default function TransactionsPage() {
                       </span>
                     )}
                   </td>
-                  <td
-                    className={`px-4 py-3 text-sm text-right font-medium ${
-                      ["income", "asset_income"].includes(t.type)
-                        ? "text-green-400"
-                        : ["expense", "liability_repayment"].includes(t.type)
-                          ? "text-red-400"
-                          : "text-blue-400"
-                    }`}
-                  >
-                    {["income", "asset_income"].includes(t.type) ? "+" : ""}
-                    {formatMoney(t.amount)}
+                  <td className={`px-4 py-3 text-sm text-right font-medium ${typeColor(t.type)}`}>
+                    {["income", "asset_income", "liability_principal_change"].includes(t.type)
+                      ? "+"
+                      : "-"}
+                    {formatMoney(Math.abs(t.amount))}
                   </td>
                   <td className="px-4 py-3 text-sm text-right">
                     {!t.isAutoGenerated && (

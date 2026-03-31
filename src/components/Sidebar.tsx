@@ -8,7 +8,7 @@ const navItems = [
   { href: "/", label: "总览", icon: "📊" },
   { href: "/assets", label: "资产", icon: "💰" },
   { href: "/liabilities", label: "负债", icon: "💳" },
-  { href: "/transactions", label: "账目", icon: "📝" },
+  { href: "/transactions", label: "记账", icon: "📝" },
   { href: "/reconciliations", label: "对账", icon: "✅" },
   { href: "/statistics", label: "统计", icon: "📈" },
 ];

@@ -424,6 +424,10 @@ export function LiabilityForm({ onSuccess }: { onSuccess?: () => void }) {
 export function TransactionForm({ onSuccess }: { onSuccess?: () => void }) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [step, setStep] = useState<1 | 2>(1);
+  const [accountType, setAccountType] = useState<"asset" | "liability">("asset");
+  const [assets, setAssets] = useState<{ id: number; name: string }[]>([]);
+  const [liabilities, setLiabilities] = useState<{ id: number; name: string }[]>([]);
   const [form, setForm] = useState({
     type: "income",
     amount: "",
@@ -436,25 +440,65 @@ export function TransactionForm({ onSuccess }: { onSuccess?: () => void }) {
     note: "",
   });
 
+  useState(() => {
+    fetch("/api/assets?active=true")
+      .then((r) => r.json())
+      .then((data) => setAssets(data.map((a: { id: number; name: string }) => ({ id: a.id, name: a.name }))))
+      .catch(() => {});
+    fetch("/api/liabilities?active=true")
+      .then((r) => r.json())
+      .then((data) => setLiabilities(data.map((l: { id: number; name: string }) => ({ id: l.id, name: l.name }))))
+      .catch(() => {});
+  });
+
+  const handleAccountTypeChange = (type: "asset" | "liability") => {
+    setAccountType(type);
+    setForm((f) => ({
+      ...f,
+      type: type === "asset" ? "income" : "liability_repayment",
+      assetId: "",
+      liabilityId: "",
+      principalPart: "",
+      interestPart: "",
+    }));
+  };
+
+  const handleItemSelect = (id: string) => {
+    if (accountType === "asset") {
+      setForm((f) => ({ ...f, assetId: id, liabilityId: "" }));
+    } else {
+      setForm((f) => ({ ...f, liabilityId: id, assetId: "" }));
+    }
+    setStep(2);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     try {
+      const body: Record<string, unknown> = {
+        type: form.type,
+        amount: Number(form.amount),
+        description: form.description,
+        transactionDate: form.transactionDate,
+        note: form.note || null,
+      };
+      if (accountType === "asset") {
+        body.assetId = form.assetId ? Number(form.assetId) : null;
+      } else {
+        body.liabilityId = form.liabilityId ? Number(form.liabilityId) : null;
+        body.principalPart = form.principalPart ? Number(form.principalPart) : 0;
+        body.interestPart = form.interestPart ? Number(form.interestPart) : 0;
+      }
+
       const res = await fetch("/api/transactions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...form,
-          amount: Number(form.amount),
-          principalPart: form.principalPart ? Number(form.principalPart) : 0,
-          interestPart: form.interestPart ? Number(form.interestPart) : 0,
-          assetId: form.assetId ? Number(form.assetId) : null,
-          liabilityId: form.liabilityId ? Number(form.liabilityId) : null,
-        }),
+        body: JSON.stringify(body),
       });
       if (res.ok) {
         setForm({
-          type: "income",
+          type: accountType === "asset" ? "income" : "liability_repayment",
           amount: "",
           principalPart: "",
           interestPart: "",
@@ -464,6 +508,7 @@ export function TransactionForm({ onSuccess }: { onSuccess?: () => void }) {
           liabilityId: "",
           note: "",
         });
+        setStep(1);
         onSuccess?.();
         router.refresh();
       }
@@ -472,101 +517,171 @@ export function TransactionForm({ onSuccess }: { onSuccess?: () => void }) {
     }
   };
 
+  const assetTypes = [
+    { value: "income", label: "收入", color: "text-green-400" },
+    { value: "expense", label: "支出", color: "text-red-400" },
+  ];
+
+  const liabilityTypes = [
+    { value: "liability_repayment", label: "还款", color: "text-red-400" },
+    { value: "liability_principal_change", label: "借款", color: "text-orange-400" },
+  ];
+
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <label className="block text-sm text-neutral-400 mb-1">类型</label>
-          <select
-            value={form.type}
-            onChange={(e) => setForm({ ...form, type: e.target.value })}
-            className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
+    <div className="space-y-4">
+      {/* Step 1: Select account type and item */}
+      <div className="space-y-3">
+        <label className="block text-sm text-neutral-400">选择账户类型</label>
+        <div className="grid grid-cols-2 gap-3">
+          <button
+            type="button"
+            onClick={() => handleAccountTypeChange("asset")}
+            className={`rounded-lg px-4 py-3 text-sm font-medium transition-colors border ${
+              accountType === "asset"
+                ? "bg-green-900/40 border-green-700 text-green-400"
+                : "bg-neutral-800 border-neutral-700 text-neutral-400 hover:border-neutral-600"
+            }`}
           >
-            <option value="income">收入</option>
-            <option value="expense">支出</option>
-            <option value="asset_value_change">资产价值变动</option>
-            <option value="asset_income">资产收益</option>
-            <option value="liability_repayment">负债还款</option>
-            <option value="liability_principal_change">负债本金变动</option>
-            <option value="transfer">转账</option>
-          </select>
-        </div>
-        <div>
-          <label className="block text-sm text-neutral-400 mb-1">金额 (元)</label>
-          <input
-            type="number"
-            step="0.01"
-            required
-            value={form.amount}
-            onChange={(e) => setForm({ ...form, amount: e.target.value })}
-            className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
-          />
+            资产
+          </button>
+          <button
+            type="button"
+            onClick={() => handleAccountTypeChange("liability")}
+            className={`rounded-lg px-4 py-3 text-sm font-medium transition-colors border ${
+              accountType === "liability"
+                ? "bg-red-900/40 border-red-700 text-red-400"
+                : "bg-neutral-800 border-neutral-700 text-neutral-400 hover:border-neutral-600"
+            }`}
+          >
+            负债
+          </button>
         </div>
       </div>
-      {form.type === "liability_repayment" && (
-        <div className="grid grid-cols-2 gap-4">
+
+      <div>
+        <label className="block text-sm text-neutral-400 mb-1">
+          选择{accountType === "asset" ? "资产" : "负债"}账户
+        </label>
+        <select
+          value={accountType === "asset" ? form.assetId : form.liabilityId}
+          onChange={(e) => handleItemSelect(e.target.value)}
+          className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2.5 text-white text-sm focus:outline-none focus:border-blue-500"
+        >
+          <option value="">请选择...</option>
+          {(accountType === "asset" ? assets : liabilities).map((item) => (
+            <option key={item.id} value={item.id}>
+              {item.name}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {/* Step 2: Transaction details (only show after item selected) */}
+      {step === 2 && (form.assetId || form.liabilityId) && (
+        <form onSubmit={handleSubmit} className="space-y-4 border-t border-neutral-800 pt-4">
           <div>
-            <label className="block text-sm text-neutral-400 mb-1">
-              本金部分 (元)
-            </label>
+            <label className="block text-sm text-neutral-400 mb-2">类型</label>
+            <div className="grid grid-cols-2 gap-3">
+              {(accountType === "asset" ? assetTypes : liabilityTypes).map((t) => (
+                <button
+                  key={t.value}
+                  type="button"
+                  onClick={() => setForm((f) => ({ ...f, type: t.value }))}
+                  className={`rounded-lg px-4 py-2.5 text-sm font-medium transition-colors border ${
+                    form.type === t.value
+                      ? `bg-neutral-800 border-blue-500 ${t.color}`
+                      : "bg-neutral-800 border-neutral-700 text-neutral-400 hover:border-neutral-600"
+                  }`}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm text-neutral-400 mb-1">金额 (元)</label>
             <input
               type="number"
               step="0.01"
-              value={form.principalPart}
-              onChange={(e) =>
-                setForm({ ...form, principalPart: e.target.value })
-              }
+              required
+              value={form.amount}
+              onChange={(e) => setForm({ ...form, amount: e.target.value })}
               className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
+              placeholder="0.00"
             />
           </div>
+
+          {accountType === "liability" && form.type === "liability_repayment" && (
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm text-neutral-400 mb-1">本金部分 (元)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={form.principalPart}
+                  onChange={(e) => setForm({ ...form, principalPart: e.target.value })}
+                  className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
+                  placeholder="0.00"
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-neutral-400 mb-1">利息部分 (元)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={form.interestPart}
+                  onChange={(e) => setForm({ ...form, interestPart: e.target.value })}
+                  className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
+                  placeholder="0.00"
+                />
+              </div>
+            </div>
+          )}
+
           <div>
-            <label className="block text-sm text-neutral-400 mb-1">
-              利息部分 (元)
-            </label>
+            <label className="block text-sm text-neutral-400 mb-1">描述</label>
             <input
-              type="number"
-              step="0.01"
-              value={form.interestPart}
-              onChange={(e) =>
-                setForm({ ...form, interestPart: e.target.value })
-              }
+              type="text"
+              required
+              value={form.description}
+              onChange={(e) => setForm({ ...form, description: e.target.value })}
+              className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
+              placeholder="简要描述"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm text-neutral-400 mb-1">日期</label>
+            <input
+              type="date"
+              required
+              value={form.transactionDate}
+              onChange={(e) => setForm({ ...form, transactionDate: e.target.value })}
               className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
             />
           </div>
-        </div>
+
+          <div>
+            <label className="block text-sm text-neutral-400 mb-1">备注</label>
+            <input
+              type="text"
+              value={form.note}
+              onChange={(e) => setForm({ ...form, note: e.target.value })}
+              className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
+              placeholder="可选"
+            />
+          </div>
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full bg-green-600 hover:bg-green-700 text-white rounded-lg px-4 py-2.5 text-sm font-medium transition-colors disabled:opacity-50"
+          >
+            {loading ? "记录中..." : "确认记账"}
+          </button>
+        </form>
       )}
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <label className="block text-sm text-neutral-400 mb-1">描述</label>
-          <input
-            type="text"
-            required
-            value={form.description}
-            onChange={(e) => setForm({ ...form, description: e.target.value })}
-            className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
-            placeholder="账目描述"
-          />
-        </div>
-        <div>
-          <label className="block text-sm text-neutral-400 mb-1">日期</label>
-          <input
-            type="date"
-            required
-            value={form.transactionDate}
-            onChange={(e) =>
-              setForm({ ...form, transactionDate: e.target.value })
-            }
-            className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
-          />
-        </div>
-      </div>
-      <button
-        type="submit"
-        disabled={loading}
-        className="w-full bg-green-600 hover:bg-green-700 text-white rounded-lg px-4 py-2.5 text-sm font-medium transition-colors disabled:opacity-50"
-      >
-        {loading ? "记录中..." : "记录账目"}
-      </button>
-    </form>
+    </div>
   );
 }

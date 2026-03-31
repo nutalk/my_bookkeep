@@ -54,7 +54,7 @@ export async function GET(request: Request) {
     }));
 
     const liabilityState = allLiabilities.map((l) => {
-      let maturityMonth = 0;
+      let maturityMonth = -1;
       if (l.endDate) {
         const endDate = new Date(l.endDate);
         maturityMonth =
@@ -85,18 +85,16 @@ export async function GET(request: Request) {
           : currentYear;
       const monthStr = `${targetYear}-${String(targetMonth).padStart(2, "0")}`;
 
+      // --- Calculate this month's income for each asset ---
       const assetDetails = assetState.map((a) => {
         let income = a.monthlyIncome;
         if (a.type === "deposit" || a.type === "investment") {
           income = (a.value * a.annualYield) / 12;
         }
-        return {
-          name: a.name,
-          value: a.value,
-          income,
-        };
+        return { name: a.name, value: a.value, income };
       });
 
+      // --- Calculate this month's payment for each liability ---
       const liabilityDetails = liabilityState.map((l) => {
         const monthlyRate = l.annualRate / 12;
         const monthlyInterest = l.remainingPrincipal * monthlyRate;
@@ -113,9 +111,6 @@ export async function GET(request: Request) {
           if (l.maturityMonth === i) {
             payment = l.remainingPrincipal + monthlyInterest;
             principalPayment = l.remainingPrincipal;
-          } else {
-            payment = 0;
-            principalPayment = 0;
           }
         }
 
@@ -134,40 +129,63 @@ export async function GET(request: Request) {
         (sum, l) => sum + l.remainingPrincipal,
         0
       );
-      const assetIncome = assetDetails.reduce(
-        (sum, a) => sum + a.income,
-        0
-      );
+      const assetIncome = assetDetails.reduce((sum, a) => sum + a.income, 0);
       const liabilityPayment = liabilityDetails.reduce(
         (sum, l) => sum + l.payment,
         0
       );
+      const cashFlow = assetIncome - liabilityPayment;
 
       predictions.push({
         month: monthStr,
         totalAssets,
         totalLiabilities,
         netWorth: totalAssets - totalLiabilities,
-        cashFlow: assetIncome - liabilityPayment,
+        cashFlow,
         assetIncome,
         liabilityPayment,
         assetDetails,
         liabilityDetails,
       });
 
-      // Update asset state for next month
+      // --- Update asset values for next month ---
+      // Assets with yield (deposit/investment) grow by interest
       for (let j = 0; j < assetState.length; j++) {
         const a = assetState[j];
-        let income = a.monthlyIncome;
         if (a.type === "deposit" || a.type === "investment") {
-          income = (a.value * a.annualYield) / 12;
-        }
-        if (a.type === "deposit" || a.type === "investment") {
+          const income = (a.value * a.annualYield) / 12;
           assetState[j] = { ...a, value: a.value + income };
         }
       }
+      // Surplus cash flow accumulates into the first deposit/investment asset
+      // If no such asset exists, surplus is not accumulated (user manually manages)
+      if (cashFlow > 0) {
+        const savingsAsset = assetState.find(
+          (a) => a.type === "deposit" || a.type === "investment"
+        );
+        if (savingsAsset) {
+          const idx = assetState.indexOf(savingsAsset);
+          assetState[idx] = {
+            ...savingsAsset,
+            value: savingsAsset.value + cashFlow,
+          };
+        }
+      } else if (cashFlow < 0) {
+        // Deficit reduces the first available asset
+        const target = assetState.find(
+          (a) =>
+            (a.type === "deposit" || a.type === "investment") && a.value > 0
+        );
+        if (target) {
+          const idx = assetState.indexOf(target);
+          assetState[idx] = {
+            ...target,
+            value: Math.max(0, target.value + cashFlow),
+          };
+        }
+      }
 
-      // Update liability state for next month
+      // --- Update liability values for next month ---
       for (let j = 0; j < liabilityState.length; j++) {
         const l = liabilityState[j];
         const monthlyRate = l.annualRate / 12;

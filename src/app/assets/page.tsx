@@ -31,7 +31,18 @@ export default function AssetsPage() {
   const [loading, setLoading] = useState(true);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [details, setDetails] = useState<Record<number, Transaction[]>>({});
-
+  const [editing, setEditing] = useState(false);
+  const [editForm, setEditForm] = useState({
+    name: "",
+    type: "deposit",
+    currentValue: "",
+    monthlyIncome: "",
+    annualYield: "",
+    incomeFrequency: "monthly",
+    incomeDay: "",
+    note: "",
+  });
+  const [editLoading, setEditLoading] = useState(false);
   useEffect(() => {
     let mounted = true;
     fetch("/api/assets")
@@ -67,6 +78,47 @@ export default function AssetsPage() {
     fetchAssets();
   };
 
+  const startEdit = () => {
+    if (!selected) return;
+    setEditForm({
+      name: selected.name,
+      type: selected.type,
+      currentValue: String(selected.currentValue),
+      monthlyIncome: String(selected.monthlyIncome ?? 0),
+      annualYield: String(selected.annualYield ?? 0),
+      incomeFrequency: "monthly",
+      incomeDay: "",
+      note: "",
+    });
+    setEditing(true);
+  };
+
+  const handleEditSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selected) return;
+    setEditLoading(true);
+    try {
+      await fetch("/api/assets", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: selected.id,
+          name: editForm.name,
+          type: editForm.type,
+          currentValue: Number(editForm.currentValue),
+          monthlyIncome: Number(editForm.monthlyIncome),
+          annualYield: Number(editForm.annualYield),
+          incomeFrequency: editForm.incomeFrequency,
+          incomeDay: editForm.incomeDay ? Number(editForm.incomeDay) : null,
+          note: editForm.note || null,
+        }),
+      });
+      setEditing(false);
+      fetchAssets();
+    } finally {
+      setEditLoading(false);
+    }
+  };
   const loadDetails = async (assetId: number) => {
     if (details[assetId]) return;
     const res = await fetch(`/api/transactions?assetId=${assetId}&limit=50`);
@@ -371,15 +423,120 @@ export default function AssetsPage() {
                 }
               </div>
 
-              {/* Delete button */}
-              <div className="flex justify-end">
+              {/* Edit / Delete buttons */}
+              <div className="flex justify-end gap-3">
+                <button
+                  onClick={startEdit}
+                  className="text-blue-400 hover:text-blue-300 text-xs border border-blue-900/50 hover:border-blue-800 rounded-lg px-3 py-1.5 transition-colors"
+                >
+                  编辑
+                </button>
                 <button
                   onClick={() => handleDelete(selected.id)}
                   className="text-red-400 hover:text-red-300 text-xs border border-red-900/50 hover:border-red-800 rounded-lg px-3 py-1.5 transition-colors"
                 >
-                  删除此资产
+                  删除
                 </button>
               </div>
+
+              {/* Edit modal */}
+              {editing && (
+                <div
+                  className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
+                  onClick={(e) => {
+                    if (e.target === e.currentTarget) setEditing(false);
+                  }}
+                >
+                  <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-6 w-full max-w-md max-h-[85vh] overflow-y-auto">
+                    <div className="flex justify-between items-center mb-4">
+                      <h3 className="text-lg font-bold text-white">编辑资产</h3>
+                      <button
+                        onClick={() => setEditing(false)}
+                        className="text-neutral-400 hover:text-white text-xl leading-none"
+                      >
+                        &times;
+                      </button>
+                    </div>
+                    <form onSubmit={handleEditSubmit} className="space-y-4">
+                      <div>
+                        <label className="block text-sm text-neutral-400 mb-1">名称</label>
+                        <input
+                          type="text"
+                          required
+                          value={editForm.name}
+                          onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                          className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
+                        />
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm text-neutral-400 mb-1">类型</label>
+                          <select
+                            value={editForm.type}
+                            onChange={(e) => setEditForm({ ...editForm, type: e.target.value })}
+                            className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
+                          >
+                            <option value="real_estate">房产</option>
+                            <option value="deposit">存款</option>
+                            <option value="investment">投资</option>
+                            <option value="income_source">收入来源</option>
+                            <option value="other">其他</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-sm text-neutral-400 mb-1">当前价值 (元)</label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            required
+                            value={editForm.currentValue}
+                            onChange={(e) => setEditForm({ ...editForm, currentValue: e.target.value })}
+                            className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
+                          />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm text-neutral-400 mb-1">月收入 (元)</label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            value={editForm.monthlyIncome}
+                            onChange={(e) => setEditForm({ ...editForm, monthlyIncome: e.target.value })}
+                            className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm text-neutral-400 mb-1">年化收益率 (%)</label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            value={editForm.annualYield}
+                            onChange={(e) => setEditForm({ ...editForm, annualYield: e.target.value })}
+                            className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-sm text-neutral-400 mb-1">备注</label>
+                        <input
+                          type="text"
+                          value={editForm.note}
+                          onChange={(e) => setEditForm({ ...editForm, note: e.target.value })}
+                          className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
+                        />
+                      </div>
+                      <button
+                        type="submit"
+                        disabled={editLoading}
+                        className="w-full bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-4 py-2.5 text-sm font-medium transition-colors disabled:opacity-50"
+                      >
+                        {editLoading ? "保存中..." : "保存修改"}
+                      </button>
+                    </form>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>

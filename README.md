@@ -43,14 +43,11 @@ cd my_bookkeep
 # 安装依赖
 bun install
 
-# 配置环境变量
+# 配置环境变量 (参照 .env.example)
 cp .env.example .env
 # 编辑 .env 填写 MySQL 连接信息
 
-# 生成数据库迁移
-bun db:generate
-
-# 运行迁移
+# 初始化数据库表
 bun db:migrate
 
 # 启动开发服务器
@@ -65,8 +62,8 @@ bun dev
 |------|------|--------|
 | `MYSQL_HOST` | MySQL 地址 | `localhost` |
 | `MYSQL_PORT` | MySQL 端口 | `3306` |
-| `MYSQL_USER` | MySQL 用户名 | `root` |
-| `MYSQL_PASSWORD` | MySQL 密码 | - |
+| `MYSQL_USER` | MySQL 用户名 | `app` |
+| `MYSQL_PASSWORD` | MySQL 密码 | `apppassword` |
 | `MYSQL_DATABASE` | 数据库名 | `family_balance_sheet` |
 | `WECHAT_APP_ID` | 微信开放平台 AppID | - |
 | `WECHAT_APP_SECRET` | 微信开放平台 AppSecret | - |
@@ -81,16 +78,9 @@ bun dev
 git clone https://github.com/nutalk/my_bookkeep.git
 cd my_bookkeep
 
-# 创建环境变量文件
-cat > .env << EOF
-MYSQL_ROOT_PASSWORD=your_root_password
-MYSQL_USER=app
-MYSQL_PASSWORD=your_db_password
-MYSQL_DATABASE=family_balance_sheet
-WECHAT_APP_ID=
-WECHAT_APP_SECRET=
-APP_PORT=3000
-EOF
+# 创建环境变量文件 (可选，不创建则使用默认值)
+cp .env.example .env
+# 编辑 .env 修改数据库密码等配置
 
 # 启动服务
 docker-compose up -d

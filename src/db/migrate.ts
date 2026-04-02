@@ -150,7 +150,7 @@ async function ensureTables() {
   const conn = await mysql.createConnection({
     host: process.env.MYSQL_HOST || "localhost",
     port: Number(process.env.MYSQL_PORT) || 3306,
-    user: process.env.MYSQL_USER || "root",
+    user: process.env.MYSQL_USER || "app",
     password: process.env.MYSQL_PASSWORD || "",
     database: process.env.MYSQL_DATABASE || "family_balance_sheet",
   });

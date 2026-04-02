@@ -5,10 +5,10 @@ services:
     image: mysql:8.0
     restart: unless-stopped
     environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpassword}
       MYSQL_DATABASE: ${MYSQL_DATABASE:-family_balance_sheet}
       MYSQL_USER: ${MYSQL_USER:-app}
       MYSQL_PASSWORD: ${MYSQL_PASSWORD:-apppassword}
+      MYSQL_RANDOM_ROOT_PASSWORD: "yes"
     ports:
       - "3306:3306"
     volumes:

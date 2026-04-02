@@ -1,41 +1,17 @@
 version: "3.8"
 
 services:
-  db:
-    image: mysql:8.0
-    restart: unless-stopped
-    environment:
-      MYSQL_DATABASE: ${MYSQL_DATABASE:-family_balance_sheet}
-      MYSQL_USER: ${MYSQL_USER:-app}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-apppassword}
-      MYSQL_RANDOM_ROOT_PASSWORD: "yes"
-    ports:
-      - "3306:3306"
-    volumes:
-      - mysql_data:/var/lib/mysql
-    healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
   app:
     image: ${DOCKER_IMAGE:-nutalk/my-bookkeep}:latest
     restart: unless-stopped
-    depends_on:
-      db:
-        condition: service_healthy
     environment:
-      MYSQL_HOST: db
-      MYSQL_PORT: "3306"
-      MYSQL_USER: ${MYSQL_USER:-app}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-apppassword}
+      MYSQL_HOST: ${MYSQL_HOST}
+      MYSQL_PORT: ${MYSQL_PORT:-3306}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
       MYSQL_DATABASE: ${MYSQL_DATABASE:-family_balance_sheet}
       WECHAT_APP_ID: ${WECHAT_APP_ID:-}
       WECHAT_APP_SECRET: ${WECHAT_APP_SECRET:-}
       NEXT_PUBLIC_WECHAT_APP_ID: ${WECHAT_APP_ID:-}
     ports:
       - "${APP_PORT:-3000}:3000"
-
-volumes:
-  mysql_data:

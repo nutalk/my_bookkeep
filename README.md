@@ -33,7 +33,16 @@
 - [Bun](https://bun.sh/) (v1.x)
 - MySQL 8.0+
 
-### 本地开发
+### 1. 准备 MySQL
+
+```sql
+CREATE DATABASE bookkeep CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE USER 'bookkeep'@'%' IDENTIFIED BY 'your_password';
+GRANT ALL PRIVILEGES ON bookkeep.* TO 'bookkeep'@'%';
+FLUSH PRIVILEGES;
+```
+
+### 2. 本地开发
 
 ```bash
 # 克隆项目
@@ -43,7 +52,7 @@ cd my_bookkeep
 # 安装依赖
 bun install
 
-# 配置环境变量 (参照 .env.example)
+# 配置环境变量
 cp .env.example .env
 # 编辑 .env 填写 MySQL 连接信息
 
@@ -58,29 +67,32 @@ bun dev
 
 ### 环境变量
 
-| 变量 | 说明 | 默认值 |
-|------|------|--------|
-| `MYSQL_HOST` | MySQL 地址 | `localhost` |
-| `MYSQL_PORT` | MySQL 端口 | `3306` |
-| `MYSQL_USER` | MySQL 用户名 | `app` |
-| `MYSQL_PASSWORD` | MySQL 密码 | `apppassword` |
-| `MYSQL_DATABASE` | 数据库名 | `family_balance_sheet` |
-| `WECHAT_APP_ID` | 微信开放平台 AppID | - |
-| `WECHAT_APP_SECRET` | 微信开放平台 AppSecret | - |
-| `NEXT_PUBLIC_WECHAT_APP_ID` | 微信前端 AppID (同上) | - |
+| 变量 | 说明 | 是否必填 |
+|------|------|---------|
+| `MYSQL_HOST` | MySQL 地址 | 是 |
+| `MYSQL_PORT` | MySQL 端口 | 否，默认 3306 |
+| `MYSQL_USER` | MySQL 用户名 | 是 |
+| `MYSQL_PASSWORD` | MySQL 密码 | 是 |
+| `MYSQL_DATABASE` | 数据库名 | 是 |
+| `WECHAT_APP_ID` | 微信开放平台 AppID | 否 |
+| `WECHAT_APP_SECRET` | 微信开放平台 AppSecret | 否 |
 
 ## Docker 部署
 
-### 使用 docker-compose 一键部署
+### 准备
+
+确保已有可用的 MySQL 服务，并已创建数据库和用户（见上方 SQL）。
+
+### 部署
 
 ```bash
 # 克隆项目
 git clone https://github.com/nutalk/my_bookkeep.git
 cd my_bookkeep
 
-# 创建环境变量文件 (可选，不创建则使用默认值)
+# 配置环境变量
 cp .env.example .env
-# 编辑 .env 修改数据库密码等配置
+# 编辑 .env 填写你的 MySQL 连接信息
 
 # 启动服务
 docker-compose up -d
@@ -90,7 +102,7 @@ docker-compose up -d
 
 数据库表结构会在容器启动时自动创建（通过 `docker-entrypoint.sh`）。
 
-### 仅部署应用 (使用已有 MySQL)
+### 使用已有 MySQL
 
 ```bash
 docker run -d \
@@ -98,9 +110,9 @@ docker run -d \
   -p 3000:3000 \
   -e MYSQL_HOST=your_mysql_host \
   -e MYSQL_PORT=3306 \
-  -e MYSQL_USER=app \
+  -e MYSQL_USER=bookkeep \
   -e MYSQL_PASSWORD=your_password \
-  -e MYSQL_DATABASE=family_balance_sheet \
+  -e MYSQL_DATABASE=bookkeep \
   nutalk/my-bookkeep:latest
 ```
 
@@ -132,15 +144,14 @@ src/
 │   ├── page.tsx                # 首页仪表盘
 │   ├── assets/page.tsx         # 资产管理
 │   ├── liabilities/page.tsx    # 负债管理
-│   ├── transactions/page.tsx   # 账目记录
+│   ├── transactions/page.tsx   # 记账
 │   ├── reconciliations/page.tsx # 对账
-│   ├── statistics/page.tsx     # 统计预测
+│   ├── statistics/page.tsx     # 统计分析
 │   └── api/                    # API 路由
 │       ├── auth/               # 认证接口
-│       ├── categories/         # 分类接口
 │       ├── assets/             # 资产接口
 │       ├── liabilities/        # 负债接口
-│       ├── transactions/       # 账目接口
+│       ├── transactions/       # 记账接口
 │       ├── reconciliations/    # 对账接口
 │       └── statistics/         # 统计接口
 ├── components/                 # 公共组件
@@ -157,8 +168,7 @@ bun build          # 生产构建
 bun start          # 启动生产服务器
 bun lint           # ESLint 检查
 bun typecheck      # TypeScript 类型检查
-bun db:generate    # 生成数据库迁移文件
-bun db:migrate     # 执行数据库迁移
+bun db:migrate     # 初始化/更新数据库表
 ```
 
 ## License

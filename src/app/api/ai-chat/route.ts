@@ -9,6 +9,7 @@ import {
   monthlySnapshots,
 } from "@/db/schema";
 import { eq, desc } from "drizzle-orm";
+import { parseActions, executeAction, type ActionName } from "./actions";
 
 interface ChatMessage {
   role: "user" | "assistant" | "system";
@@ -82,7 +83,41 @@ ${financialContext}
 4. 回答使用中文，语言要亲切易懂
 5. 涉及金额时，使用人民币格式（如 ¥123,456.78）
 6. 可以提问以获取更多信息，帮助用户更好地管理财务
-7. 不要编造不存在的资产、负债或交易数据`;
+7. 不要编造不存在的资产、负债或交易数据
+
+## 可执行的操作
+
+你可以通过以下格式执行数据操作，帮助用户管理财务：
+
+【操作:action_name】
+{json参数}
+
+### 支持的操作：
+
+1. **create_transaction** - 创建交易记录
+   - 参数: type (交易类型), amount (金额), description (描述), transactionDate (日期, 可选), categoryId (分类ID, 可选), note (备注, 可选)
+   - type 可选值: expense (支出), income (收入), asset_value_change (资产价值变动), asset_income (资产收益), liability_repayment (负债还款), liability_principal_change (负债本金变动), transfer (转账), reconciliation (对账调整)
+
+2. **create_asset** - 创建资产
+   - 参数: name (名称), type (类型), currentValue (当前价值), monthlyIncome (月收入, 可选), annualYield (年化收益率%, 可选)
+   - type 可选值: real_estate (房产), deposit (存款), investment (投资), income_source (收入来源), other (其他)
+
+3. **create_liability** - 创建负债
+   - 参数: name (名称), type (类型), totalPrincipal (总额), annualRate (年利率%), monthlyPayment (月供), paymentDay (还款日, 可选)
+   - type 可选值: mortgage (房贷), car_loan (车贷), credit_card (信用卡), personal_loan (个人贷款), other (其他)
+
+4. **update_asset** - 更新资产
+   - 参数: id (资产ID), currentValue (新价值, 可选), monthlyIncome (月收入, 可选), isActive (是否启用, 可选)
+
+5. **update_liability** - 更新负债
+   - 参数: id (负债ID), remainingPrincipal (剩余本金, 可选), isActive (是否结清, 可选)
+
+### 使用示例：
+
+【操作:create_transaction】
+{"type": "expense", "amount": 500, "description": "午餐消费"}
+
+一次回答中可以包含多个操作。操作执行结果会自动追加到回答末尾。`;
 
     const fullMessages: ChatMessage[] = [
       { role: "system", content: systemPrompt },
@@ -116,8 +151,80 @@ ${financialContext}
       );
     }
 
-    // Return the streaming response directly
-    return new Response(response.body, {
+    // Proxy the stream, accumulating text to detect and execute actions
+    const reader = response.body?.getReader();
+    if (!reader) {
+      return NextResponse.json({ error: "无法读取 AI 响应" }, { status: 502 });
+    }
+
+    const decoder = new TextDecoder();
+    let accumulated = "";
+
+    const stream = new ReadableStream({
+      async start(controller) {
+        try {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            const chunk = decoder.decode(value, { stream: true });
+            const lines = chunk.split("\n");
+
+            for (const line of lines) {
+              if (!line.startsWith("data: ")) continue;
+              const data = line.slice(6).trim();
+              if (data === "[DONE]") continue;
+
+              try {
+                const parsed = JSON.parse(data);
+                const delta = parsed.choices?.[0]?.delta?.content || "";
+                accumulated += delta;
+              } catch {}
+            }
+
+            controller.enqueue(value);
+          }
+
+          // After streaming completes, parse and execute actions
+          console.log(
+            "[AI Chat] Full accumulated text:",
+            accumulated.slice(0, 500),
+          );
+          const { actions } = parseActions(accumulated);
+          if (actions.length > 0) {
+            console.log(
+              `Executing ${actions.length} action(s) from AI response`,
+            );
+            const summaryParts: string[] = [];
+            for (const action of actions) {
+              const result = await executeAction(
+                user.id,
+                action.name,
+                action.params,
+              );
+              if (result.success) {
+                summaryParts.push(
+                  `✅ ${result.message}\n📋 当前数据：${result.verifyData ?? "(无可验证数据)"}`,
+                );
+              } else {
+                summaryParts.push(`❌ ${result.message}`);
+              }
+            }
+            const summary = summaryParts.join("\n\n");
+            // Append execution summary as a final data chunk
+            const summaryPayload = `data: {"choices":[{"delta":{"content":"\n\n---\n## ✅ 操作执行结果\n\n${summary}"}}]}\n\ndata: [DONE]\n\n`;
+            controller.enqueue(new TextEncoder().encode(summaryPayload));
+          }
+
+          controller.close();
+        } catch (err) {
+          console.error("Stream error:", err);
+          controller.error(err);
+        }
+      },
+    });
+
+    return new Response(stream, {
       headers: {
         "Content-Type": "text/event-stream",
         "Cache-Control": "no-cache",

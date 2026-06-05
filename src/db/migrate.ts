@@ -145,6 +145,28 @@ async function ensureTables() {
         FOREIGN KEY (user_id) REFERENCES users(id)
       )`,
     },
+    {
+      name: "chat_sessions",
+      sql: `CREATE TABLE IF NOT EXISTS chat_sessions (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        user_id INT NOT NULL,
+        title VARCHAR(100) NOT NULL,
+        created_at DATETIME,
+        updated_at DATETIME,
+        FOREIGN KEY (user_id) REFERENCES users(id)
+      )`,
+    },
+    {
+      name: "chat_messages",
+      sql: `CREATE TABLE IF NOT EXISTS chat_messages (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        session_id INT NOT NULL,
+        role VARCHAR(20) NOT NULL,
+        content TEXT NOT NULL,
+        created_at DATETIME,
+        FOREIGN KEY (session_id) REFERENCES chat_sessions(id) ON DELETE CASCADE
+      )`,
+    },
   ];
 
   const conn = await mysql.createConnection({

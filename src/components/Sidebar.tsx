@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { useChatPanel } from "@/lib/chat-context";
 
 const navItems = [
   { href: "/", label: "总览", icon: "📊" },
@@ -11,7 +12,6 @@ const navItems = [
   { href: "/transactions", label: "记账", icon: "📝" },
   { href: "/reconciliations", label: "对账", icon: "✅" },
   { href: "/statistics", label: "统计", icon: "📈" },
-  { href: "/ai-chat", label: "AI聊天", icon: "🤖" },
 ];
 
 interface UserInfo {
@@ -24,6 +24,7 @@ interface UserInfo {
 export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
+  const { panelOpen, togglePanel } = useChatPanel();
   const [user, setUser] = useState<UserInfo | null>(null);
   const [loggingOut, setLoggingOut] = useState(false);
 
@@ -49,7 +50,7 @@ export function Sidebar() {
   };
 
   return (
-    <aside className="w-56 bg-neutral-900 border-r border-neutral-800 min-h-screen flex flex-col">
+    <aside className="w-56 bg-neutral-900 border-r border-neutral-800 h-full flex flex-col">
       <div className="p-4 border-b border-neutral-800">
         <h1 className="text-lg font-bold text-white">家庭资产负债表</h1>
         <p className="text-xs text-neutral-400 mt-1">Family Balance Sheet</p>
@@ -74,6 +75,17 @@ export function Sidebar() {
             </Link>
           );
         })}
+        <button
+          onClick={togglePanel}
+          className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors w-full text-left ${
+            panelOpen
+              ? "bg-blue-600 text-white"
+              : "text-neutral-400 hover:bg-neutral-800 hover:text-white"
+          }`}
+        >
+          <span className="text-base">🤖</span>
+          <span>AI聊天</span>
+        </button>
       </nav>
       <div className="p-3 border-t border-neutral-800">
         {user && (

@@ -136,6 +136,30 @@ export const reconciliations = mysqlTable("reconciliations", {
   createdAt: datetime("created_at").$defaultFn(() => new Date()),
 });
 
+// ========== AI 聊天会话 ==========
+
+export const chatSessions = mysqlTable("chat_sessions", {
+  id: serial("id").primaryKey(),
+  userId: int("user_id")
+    .notNull()
+    .references(() => users.id),
+  title: varchar("title", { length: 100 }).notNull(),
+  createdAt: datetime("created_at").$defaultFn(() => new Date()),
+  updatedAt: datetime("updated_at").$defaultFn(() => new Date()),
+});
+
+// ========== AI 聊天消息 ==========
+
+export const chatMessages = mysqlTable("chat_messages", {
+  id: serial("id").primaryKey(),
+  sessionId: int("session_id")
+    .notNull()
+    .references(() => chatSessions.id, { onDelete: "cascade" }),
+  role: varchar("role", { length: 20 }).notNull(),
+  content: text("content").notNull(),
+  createdAt: datetime("created_at").$defaultFn(() => new Date()),
+});
+
 // ========== 月度快照 ==========
 
 export const monthlySnapshots = mysqlTable("monthly_snapshots", {

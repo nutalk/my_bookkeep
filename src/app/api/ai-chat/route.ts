@@ -7,6 +7,8 @@ import {
   transactions,
   categories,
   monthlySnapshots,
+  chatSessions,
+  chatMessages,
 } from "@/db/schema";
 import { eq, desc } from "drizzle-orm";
 import { parseActions, executeAction, type ActionName } from "./actions";
@@ -16,19 +18,77 @@ interface ChatMessage {
   content: string;
 }
 
+interface RequestBody {
+  // Page mode: full message array
+  messages?: ChatMessage[];
+  // Panel mode: session-based
+  sessionId?: number;
+  content?: string;
+  // Config
+  apiKey: string;
+  baseUrl: string;
+  model: string;
+}
+
 export async function POST(request: Request) {
   try {
     const user = await requireUser();
-    const body = await request.json();
-    const { messages, apiKey, baseUrl, model } = body as {
-      messages: ChatMessage[];
-      apiKey: string;
-      baseUrl: string;
-      model: string;
-    };
+    const body = (await request.json()) as RequestBody;
+    const { apiKey, baseUrl, model, sessionId: sid, content } = body;
+    let { messages } = body;
 
     if (!apiKey) {
       return NextResponse.json({ error: "请先配置 API Key" }, { status: 400 });
+    }
+
+    // Panel mode: build messages from session history + new user message
+    if (sid && content) {
+      // Verify session belongs to user
+      const sessionRows = await db
+        .select()
+        .from(chatSessions)
+        .where(eq(chatSessions.id, sid))
+        .limit(1);
+
+      if (!sessionRows.length || sessionRows[0].userId !== user.id) {
+        return NextResponse.json({ error: "会话不存在" }, { status: 404 });
+      }
+
+      // Fetch existing messages
+      const historyRows = await db
+        .select()
+        .from(chatMessages)
+        .where(eq(chatMessages.sessionId, sid))
+        .orderBy(chatMessages.createdAt);
+
+      // Save user message to DB
+      await db.insert(chatMessages).values({
+        sessionId: sid,
+        role: "user",
+        content,
+      });
+
+      // Build messages array from history + new message
+      messages = historyRows.map((m) => ({
+        role: m.role as "user" | "assistant",
+        content: m.content,
+      }));
+      messages.push({ role: "user", content });
+
+      // Update session title from first user message
+      if (historyRows.length === 0) {
+        const title =
+          content.length > 30 ? content.slice(0, 30) + "..." : content;
+        await db
+          .update(chatSessions)
+          .set({ title, updatedAt: new Date() })
+          .where(eq(chatSessions.id, sid));
+      } else {
+        await db
+          .update(chatSessions)
+          .set({ updatedAt: new Date() })
+          .where(eq(chatSessions.id, sid));
+      }
     }
 
     if (!messages || !messages.length) {
@@ -190,7 +250,21 @@ ${financialContext}
             "[AI Chat] Full accumulated text:",
             accumulated.slice(0, 500),
           );
-          const { actions } = parseActions(accumulated);
+          const { actions, cleanText } = parseActions(accumulated);
+
+          // Save assistant response to DB in session mode
+          if (sid) {
+            await db.insert(chatMessages).values({
+              sessionId: sid,
+              role: "assistant",
+              content: cleanText || accumulated,
+            });
+            await db
+              .update(chatSessions)
+              .set({ updatedAt: new Date() })
+              .where(eq(chatSessions.id, sid));
+          }
+
           if (actions.length > 0) {
             console.log(
               `Executing ${actions.length} action(s) from AI response`,

@@ -184,23 +184,65 @@ ${financialContext}
       ...messages,
     ];
 
-    // Call OpenAI-compatible API
+    // Call OpenAI-compatible API with timeout
     const endpoint = (baseUrl || "https://api.openai.com/v1").replace(
       /\/+$/,
       "",
     );
-    const response = await fetch(`${endpoint}/chat/completions`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: model || "gpt-4o",
-        messages: fullMessages,
-        stream: true,
-      }),
-    });
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000);
+
+    let response;
+    try {
+      response = await fetch(`${endpoint}/chat/completions`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model: model || "gpt-4o",
+          messages: fullMessages,
+          stream: true,
+        }),
+        signal: controller.signal,
+      });
+    } catch (fetchErr) {
+      clearTimeout(timeoutId);
+      if ((fetchErr as Error).name === "AbortError") {
+        console.error("AI API timeout:", endpoint);
+        return NextResponse.json(
+          {
+            error: `AI 接口连接超时，请检查网络或更换 API 地址（当前地址: ${endpoint}）`,
+          },
+          { status: 502 },
+        );
+      }
+      const cause = (fetchErr as { cause?: Error }).cause;
+      if (
+        cause?.message?.includes("ConnectTimeout") ||
+        cause?.message?.includes("connect ETIMEDOUT")
+      ) {
+        return NextResponse.json(
+          { error: "AI 接口连接超时，请检查网络或更换 API 地址" },
+          { status: 502 },
+        );
+      }
+      if (cause?.message?.includes("ENOTFOUND")) {
+        return NextResponse.json(
+          { error: "AI 接口域名解析失败，请检查 API 地址是否正确" },
+          { status: 502 },
+        );
+      }
+      if (cause?.message?.includes("ECONNREFUSED")) {
+        return NextResponse.json(
+          { error: "AI 接口连接被拒绝，请检查 API 地址和端口" },
+          { status: 502 },
+        );
+      }
+      throw fetchErr;
+    }
+    clearTimeout(timeoutId);
 
     if (!response.ok) {
       const errorText = await response.text();

@@ -20,8 +20,8 @@ const DEFAULT_MODEL = "gpt-4o";
 const CONFIG_KEY = "ai_chat_config";
 const WIDTH_KEY = "ai_chat_panel_width";
 const MIN_WIDTH = 200;
-const MAX_WIDTH = 600;
-const DEFAULT_WIDTH = 224;
+const MAX_WIDTH = 800;
+const DEFAULT_WIDTH = 448;
 
 function loadConfig(): AIConfig {
   try {

@@ -19,6 +19,12 @@ The project now includes a full account management system with MySQL database, p
 - [x] Updated Sidebar with user info display and logout button
 - [x] Updated Dashboard page with user greeting and auth check
 - [x] Removed old @kilocode/app-builder-db dependency
+- [x] Added AI Chat feature with OpenAI-compatible API integration
+  - [x] Sidebar navigation item "AI聊天" added
+  - [x] AI Chat page with API config panel and chat dialog
+  - [x] API route that fetches user financial data as context
+  - [x] Streaming response for real-time chat
+  - [x] Config stored in localStorage (API key, base URL, model)
 - [x] All lint and type checks passing
 
 ## Current Structure
@@ -39,6 +45,8 @@ The project now includes a full account management system with MySQL database, p
 | Login page | `src/app/login/page.tsx` | Phone/WeChat login UI |
 | Sidebar | `src/components/Sidebar.tsx` | User info + logout |
 | All API routes | `src/app/api/*/route.ts` | Updated with user_id filtering |
+| AI Chat page | `src/app/ai-chat/page.tsx` | Config + chat dialog |
+| AI Chat API | `src/app/api/ai-chat/route.ts` | OpenAI-compatible streaming chat |
 
 ## Pending Improvements
 
@@ -55,3 +63,4 @@ The project now includes a full account management system with MySQL database, p
 | Initial | Template created with base setup |
 | 2026-03-24 | Full implementation: database, API, web frontend, WeChat mini program |
 | 2026-03-24 | Account system: MySQL migration, user auth, phone/WeChat login, data isolation |
+| 2026-06-05 | AI Chat feature: sidebar nav, chat page, streaming API, financial context |

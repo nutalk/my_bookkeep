@@ -31,6 +31,9 @@ export default function AssetsPage() {
   const [loading, setLoading] = useState(true);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [details, setDetails] = useState<Record<number, Transaction[]>>({});
+  const [txTotals, setTxTotals] = useState<Record<number, number>>({});
+  const [txPages, setTxPages] = useState<Record<number, number>>({});
+  const [txLimit] = useState(20);
   const [editing, setEditing] = useState(false);
   const [editForm, setEditForm] = useState({
     name: "",
@@ -119,17 +122,27 @@ export default function AssetsPage() {
       setEditLoading(false);
     }
   };
-  const loadDetails = async (assetId: number) => {
-    if (details[assetId]) return;
-    const res = await fetch(`/api/transactions?assetId=${assetId}&limit=50`);
-    const data = await res.json();
-    setDetails((d) => ({ ...d, [assetId]: data }));
+  const loadDetails = async (assetId: number, page = 1) => {
+    const offset = (page - 1) * txLimit;
+    const res = await fetch(`/api/transactions?assetId=${assetId}&limit=${txLimit}&offset=${offset}`);
+    const result = await res.json();
+    setDetails((d) => ({ ...d, [assetId]: result.data }));
+    setTxTotals((t) => ({ ...t, [assetId]: result.total }));
+    setTxPages((p) => ({ ...p, [assetId]: page }));
   };
 
   const handleSelect = (id: number) => {
     setSelectedId(id);
+    setDetails((d) => {
+      const nd = { ...d };
+      delete nd[id];
+      return nd;
+    });
     loadDetails(id);
   };
+
+  const totalPages = (id: number) => Math.max(1, Math.ceil((txTotals[id] ?? 0) / txLimit));
+  const currentPage = (id: number) => txPages[id] ?? 1;
 
   const txTypeLabel = (type: string) => {
     const map: Record<string, string> = {
@@ -421,6 +434,32 @@ export default function AssetsPage() {
                     </table>
                   )
                 }
+                {selected && totalPages(selected.id) > 1 && (
+                  <div className="flex items-center justify-between px-4 py-3 border-t border-neutral-800">
+                    <span className="text-xs text-neutral-500">
+                      共 {txTotals[selected.id] ?? 0} 条
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => loadDetails(selected.id, currentPage(selected.id) - 1)}
+                        disabled={currentPage(selected.id) <= 1}
+                        className="text-xs text-neutral-400 hover:text-white disabled:opacity-30 px-2 py-1 rounded transition-colors"
+                      >
+                        上一页
+                      </button>
+                      <span className="text-xs text-neutral-500">
+                        {currentPage(selected.id)} / {totalPages(selected.id)}
+                      </span>
+                      <button
+                        onClick={() => loadDetails(selected.id, currentPage(selected.id) + 1)}
+                        disabled={currentPage(selected.id) >= totalPages(selected.id)}
+                        className="text-xs text-neutral-400 hover:text-white disabled:opacity-30 px-2 py-1 rounded transition-colors"
+                      >
+                        下一页
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Edit / Delete buttons */}

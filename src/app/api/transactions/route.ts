@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { transactions, assets, liabilities } from "@/db/schema";
-import { eq, and, gte, lte, desc } from "drizzle-orm";
+import { eq, and, gte, lte, desc, sql } from "drizzle-orm";
 import { requireUser } from "@/lib/auth";
 
 export async function GET(request: Request) {
@@ -16,6 +16,7 @@ export async function GET(request: Request) {
     const endDate = searchParams.get("endDate");
     const categoryId = searchParams.get("categoryId");
     const limit = searchParams.get("limit");
+    const offset = searchParams.get("offset");
 
     if (id) {
       const tx = await db
@@ -36,14 +37,23 @@ export async function GET(request: Request) {
     if (startDate) conditions.push(gte(transactions.transactionDate, new Date(startDate)));
     if (endDate) conditions.push(lte(transactions.transactionDate, new Date(endDate)));
 
+    const limitNum = limit ? Number(limit) : 50;
+    const offsetNum = offset ? Number(offset) : 0;
+
+    const [countResult] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(transactions)
+      .where(and(...conditions));
+
     const result = await db
       .select()
       .from(transactions)
       .where(and(...conditions))
       .orderBy(desc(transactions.transactionDate))
-      .limit(limit ? Number(limit) : 500);
+      .limit(limitNum)
+      .offset(offsetNum);
 
-    return NextResponse.json(result);
+    return NextResponse.json({ data: result, total: countResult.count });
   } catch (e) {
     if ((e as Error).message === "UNAUTHORIZED") {
       return NextResponse.json({ error: "请先登录" }, { status: 401 });

@@ -42,9 +42,9 @@ export default function TransactionsPage() {
     if (typeFilter) params.set("type", typeFilter);
     fetch(`/api/transactions?${params}`)
       .then((r) => r.json())
-      .then((data) => {
+      .then((result) => {
         if (mounted) {
-          setTransactions(data);
+          setTransactions(result.data ?? result);
           setLoading(false);
         }
       });

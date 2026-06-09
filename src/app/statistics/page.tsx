@@ -121,7 +121,8 @@ function LineChart({
     d.values.filter((_, si) => !hiddenSeries.has(si))
   );
   const maxVal = visibleValues.length > 0 ? Math.max(...visibleValues, 0) : 1;
-  const minVal = visibleValues.length > 0 ? Math.min(...visibleValues, 0) : 0;
+  const rawMin = visibleValues.length > 0 ? Math.min(...visibleValues) : 0;
+  const minVal = rawMin >= 0 ? rawMin * 0.98 : rawMin * 1.02;
   const range = maxVal - minVal || 1;
 
   const toX = (i: number) =>
@@ -381,10 +382,10 @@ function BarChart({
     return vals;
   });
   const maxVal = allVals.length > 0 ? Math.max(...allVals, 0) : 1;
-  const minVal = Math.min(
-    0,
+  const rawMin = Math.min(
     ...data.map((d) => (showIncome ? d.income : 0) - (showPayment ? d.payment : 0))
   );
+  const minVal = rawMin >= 0 ? rawMin * 0.98 : rawMin * 1.02;
   const range = maxVal - minVal || 1;
   const zeroY = padding.top + (maxVal / range) * ph;
 
@@ -613,22 +614,24 @@ function HistoryTab() {
   const [months, setMonths] = useState(12);
   const [loading, setLoading] = useState(true);
   const [selectedMonth, setSelectedMonth] = useState<number | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
     let mounted = true;
+    setSelectedMonth(null);
     fetch(`/api/statistics/history?months=${months}`)
       .then((r) => r.json())
       .then((d) => {
         if (mounted) {
           setData(d);
           setLoading(false);
-          setSelectedMonth(null);
         }
       });
     return () => {
       mounted = false;
     };
-  }, [months]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [months, refreshKey]);
 
   const lineData = useMemo(() => {
     if (!data) return [];
@@ -652,18 +655,30 @@ function HistoryTab() {
             基于所有交易记录计算的月度余额
           </p>
         </div>
-        <select
-          value={months}
-          onChange={(e) => {
-            setMonths(Number(e.target.value));
-            setSelectedMonth(null);
-          }}
-          className="bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-1.5 text-white text-sm"
-        >
-          <option value={12}>过去 12 个月</option>
-          <option value={24}>过去 24 个月</option>
-          <option value={36}>过去 36 个月</option>
-        </select>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setRefreshKey((k) => k + 1)}
+            disabled={loading}
+            className="bg-neutral-800 hover:bg-neutral-700 disabled:opacity-50 border border-neutral-700 rounded-lg px-3 py-1.5 text-white text-sm transition-colors flex items-center gap-1.5"
+          >
+            <svg className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            刷新
+          </button>
+          <select
+            value={months}
+            onChange={(e) => {
+              setMonths(Number(e.target.value));
+              setSelectedMonth(null);
+            }}
+            className="bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-1.5 text-white text-sm"
+          >
+            <option value={12}>过去 12 个月</option>
+            <option value={24}>过去 24 个月</option>
+            <option value={36}>过去 36 个月</option>
+          </select>
+        </div>
       </div>
 
       {loading ? (
@@ -799,6 +814,7 @@ function PredictionTab() {
   const [predictionMonths, setPredictionMonths] = useState(12);
   const [loading, setLoading] = useState(true);
   const [selectedMonth, setSelectedMonth] = useState<number | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
     let mounted = true;
@@ -814,7 +830,8 @@ function PredictionTab() {
     return () => {
       mounted = false;
     };
-  }, [predictionMonths]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [predictionMonths, refreshKey]);
 
   const lineData = useMemo(() => {
     if (!prediction) return [];
@@ -841,16 +858,28 @@ function PredictionTab() {
           <h3 className="text-lg font-bold text-white">现金流预测</h3>
           <p className="text-sm text-neutral-400 mt-0.5">基于资产收益率和负债还款计划的未来预测</p>
         </div>
-        <select
-          value={predictionMonths}
-          onChange={(e) => { setPredictionMonths(Number(e.target.value)); setLoading(true); }}
-          className="bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-1.5 text-white text-sm"
-        >
-          <option value={6}>6 个月</option>
-          <option value={12}>12 个月</option>
-          <option value={24}>24 个月</option>
-          <option value={36}>36 个月</option>
-        </select>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setRefreshKey((k) => k + 1)}
+            disabled={loading}
+            className="bg-neutral-800 hover:bg-neutral-700 disabled:opacity-50 border border-neutral-700 rounded-lg px-3 py-1.5 text-white text-sm transition-colors flex items-center gap-1.5"
+          >
+            <svg className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            刷新
+          </button>
+          <select
+            value={predictionMonths}
+            onChange={(e) => { setPredictionMonths(Number(e.target.value)); setLoading(true); }}
+            className="bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-1.5 text-white text-sm"
+          >
+            <option value={6}>6 个月</option>
+            <option value={12}>12 个月</option>
+            <option value={24}>24 个月</option>
+            <option value={36}>36 个月</option>
+          </select>
+        </div>
       </div>
 
       {loading ? (

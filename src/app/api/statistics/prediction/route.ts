@@ -98,8 +98,10 @@ export async function GET(request: Request) {
       });
 
       const liabilityDetails = liabilityState.map((l) => {
-        const monthlyRate = l.annualRate / 12;
+        // 年利率是百分比值（如 3.5 表示 3.5%），需除以 100
+        const monthlyRate = l.annualRate / 100 / 12;
         const monthlyInterest = l.remainingPrincipal * monthlyRate;
+
         let payment = 0;
         let principalPayment = 0;
 
@@ -107,7 +109,7 @@ export async function GET(request: Request) {
           payment = l.monthlyPayment;
           principalPayment = Math.max(0, l.monthlyPayment - monthlyInterest);
         } else if (l.repaymentMethod === "interest_only") {
-          payment = monthlyInterest;
+          payment = l.monthlyPayment > 0 ? l.monthlyPayment : monthlyInterest;
           principalPayment = 0;
         } else if (l.repaymentMethod === "lump_sum") {
           if (l.maturityMonth === i) {
@@ -117,6 +119,10 @@ export async function GET(request: Request) {
             payment = 0;
             principalPayment = 0;
           }
+        } else {
+          // 其他还款方式：优先使用用户设置的月还款
+          payment = l.monthlyPayment > 0 ? l.monthlyPayment : 0;
+          principalPayment = Math.max(0, payment - monthlyInterest);
         }
 
         return {
@@ -155,14 +161,14 @@ export async function GET(request: Request) {
         liabilityDetails,
       });
 
-      // Update asset state for next month
+      // Update asset state for next month — 所有月收入累加到资产价值中
       for (let j = 0; j < assetState.length; j++) {
         const a = assetState[j];
         let income = a.monthlyIncome;
         if (a.type === "deposit" || a.type === "investment") {
           income = (a.value * a.annualYield) / 12;
         }
-        if (a.type === "deposit" || a.type === "investment") {
+        if (income > 0) {
           assetState[j] = { ...a, value: a.value + income };
         }
       }
@@ -170,7 +176,7 @@ export async function GET(request: Request) {
       // Update liability state for next month
       for (let j = 0; j < liabilityState.length; j++) {
         const l = liabilityState[j];
-        const monthlyRate = l.annualRate / 12;
+        const monthlyRate = l.annualRate / 100 / 12;
         const monthlyInterest = l.remainingPrincipal * monthlyRate;
         let principalPayment = 0;
 
@@ -182,6 +188,9 @@ export async function GET(request: Request) {
           if (l.maturityMonth === i) {
             principalPayment = l.remainingPrincipal;
           }
+        } else {
+          const payment = l.monthlyPayment > 0 ? l.monthlyPayment : 0;
+          principalPayment = Math.max(0, payment - monthlyInterest);
         }
 
         const newPrincipal = Math.max(

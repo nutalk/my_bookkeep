@@ -89,7 +89,11 @@ export async function PUT(request: Request) {
     const { id, ...updates } = body;
     await db
       .update(liabilities)
-      .set({ ...updates, updatedAt: new Date() })
+      .set({
+        ...updates,
+        startDate: updates.startDate ? new Date(updates.startDate) : null,
+        updatedAt: new Date(),
+      })
       .where(and(eq(liabilities.id, id), eq(liabilities.userId, user.id)));
 
     const [updated] = await db

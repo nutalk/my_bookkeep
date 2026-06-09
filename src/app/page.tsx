@@ -38,12 +38,20 @@ const BAR_COLORS = [
 ];
 
 function calcLiabilityMonthly(l: Liability) {
+  // 如果用户手动设置了月还款，优先使用用户设置的值
+  if (l.monthlyPayment > 0) {
+    const monthlyRate = l.annualRate / 100 / 12;
+    // 按剩余本金估算当月利息
+    const interest = l.remainingPrincipal * monthlyRate;
+    return {
+      total: l.monthlyPayment,
+      interest: Math.min(interest, l.monthlyPayment),
+      principal: Math.max(0, l.monthlyPayment - interest),
+    };
+  }
+  // 没有月还款时，按还款方式估算
   const method = l.repaymentMethod || "equal_installment";
   const monthlyRate = l.annualRate / 100 / 12;
-  if (method === "equal_installment") {
-    const interest = l.remainingPrincipal * monthlyRate;
-    return { total: l.monthlyPayment, interest, principal: l.monthlyPayment - interest };
-  }
   if (method === "interest_only") {
     const interest = l.remainingPrincipal * monthlyRate;
     return { total: interest, interest, principal: 0 };

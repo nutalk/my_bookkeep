@@ -30,10 +30,12 @@ export async function GET() {
     const monthlyCashFlow =
       allAssets.reduce((sum, a) => sum + (a.monthlyIncome ?? 0), 0) -
       allLiabilities.reduce((sum, l) => {
+        // 优先使用用户设置的月还款
+        if (l.monthlyPayment > 0) return sum + l.monthlyPayment;
         const method = l.repaymentMethod || "equal_installment";
-        if (method === "equal_installment") return sum + l.monthlyPayment;
         if (method === "interest_only") {
-          return sum + (l.remainingPrincipal * l.annualRate) / 12;
+          // 年利率是百分比值，需除以 100
+          return sum + (l.remainingPrincipal * l.annualRate) / 100 / 12;
         }
         return sum;
       }, 0);

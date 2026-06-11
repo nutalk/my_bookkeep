@@ -119,6 +119,9 @@ export async function GET(request: Request) {
             bal -= t.amount;
           } else if (t.type === "expense") {
             bal += t.amount;
+          } else if (t.type === "reconciliation") {
+            // Reconciliation adjusts currentValue; subtract to get prior balance
+            bal -= t.amount;
           }
           // asset_value_change sets an absolute value, cannot undo cleanly;
           // forward walk will set the correct value at the transaction date.
@@ -137,6 +140,9 @@ export async function GET(request: Request) {
           } else if (t.type === "liability_repayment") {
             const pr = (t.principalPart ?? 0) > 0 ? t.principalPart! : t.amount;
             bal += pr;
+          } else if (t.type === "reconciliation") {
+            // Reconciliation adjusts remainingPrincipal; subtract to get prior balance
+            bal -= t.amount;
           }
         }
       }
@@ -179,6 +185,8 @@ export async function GET(request: Request) {
             assetBalances[t.assetId] -= t.amount;
           } else if (t.type === "asset_value_change") {
             assetBalances[t.assetId] = t.amount;
+          } else if (t.type === "reconciliation") {
+            assetBalances[t.assetId] += t.amount;
           }
         }
         if (t.liabilityId && t.liabilityId in liabilityBalances) {
@@ -187,6 +195,8 @@ export async function GET(request: Request) {
           } else if (t.type === "liability_repayment") {
             const pr = (t.principalPart ?? 0) > 0 ? t.principalPart! : t.amount;
             liabilityBalances[t.liabilityId] -= pr;
+          } else if (t.type === "reconciliation") {
+            liabilityBalances[t.liabilityId] += t.amount;
           }
         }
         txIdx++;

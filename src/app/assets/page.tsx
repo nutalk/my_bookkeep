@@ -124,7 +124,9 @@ export default function AssetsPage() {
   };
   const loadDetails = async (assetId: number, page = 1) => {
     const offset = (page - 1) * txLimit;
-    const res = await fetch(`/api/transactions?assetId=${assetId}&limit=${txLimit}&offset=${offset}`);
+    const res = await fetch(
+      `/api/transactions?assetId=${assetId}&limit=${txLimit}&offset=${offset}`,
+    );
     const result = await res.json();
     setDetails((d) => ({ ...d, [assetId]: result.data }));
     setTxTotals((t) => ({ ...t, [assetId]: result.total }));
@@ -141,7 +143,8 @@ export default function AssetsPage() {
     loadDetails(id);
   };
 
-  const totalPages = (id: number) => Math.max(1, Math.ceil((txTotals[id] ?? 0) / txLimit));
+  const totalPages = (id: number) =>
+    Math.max(1, Math.ceil((txTotals[id] ?? 0) / txLimit));
   const currentPage = (id: number) => txPages[id] ?? 1;
 
   const txTypeLabel = (type: string) => {
@@ -155,7 +158,7 @@ export default function AssetsPage() {
   };
 
   const selected = assets.find((a) => a.id === selectedId);
-  const selectedTxs = selectedId ? details[selectedId] ?? null : null;
+  const selectedTxs = selectedId ? (details[selectedId] ?? null) : null;
 
   // Compute running balances for transaction table (oldest-first)
   const txsWithBalance = (() => {
@@ -169,7 +172,10 @@ export default function AssetsPage() {
         balance -= t.amount;
       } else if (t.type === "expense") {
         balance += t.amount;
+      } else if (t.type === "reconciliation") {
+        balance -= t.amount; // delta: undo by subtracting
       }
+      // asset_value_change: absolute set, cannot undo cleanly
     }
     // Walk forward computing balance after each transaction
     const result: (Transaction & { balance: number })[] = [];
@@ -178,6 +184,12 @@ export default function AssetsPage() {
         balance += t.amount;
       } else if (t.type === "expense") {
         balance -= t.amount;
+      } else if (t.type === "asset_value_change") {
+        balance = t.amount;
+      } else if (t.type === "reconciliation") {
+        balance += t.amount;
+      } else if (t.type === "reconciliation") {
+        balance += t.amount; // delta
       }
       result.push({ ...t, balance });
     }
@@ -197,6 +209,7 @@ export default function AssetsPage() {
       } else if (t.type === "expense") {
         balance += t.amount;
       }
+      // asset_value_change: absolute set, skip (forward walk will set correctly)
     }
     // Walk forward, track ending balance per month
     const monthMap = new Map<string, number>();
@@ -211,6 +224,8 @@ export default function AssetsPage() {
         balance += t.amount;
       } else if (t.type === "expense") {
         balance -= t.amount;
+      } else if (t.type === "asset_value_change") {
+        balance = t.amount;
       }
       const d = new Date(t.transactionDate);
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
@@ -369,71 +384,70 @@ export default function AssetsPage() {
                   <h3 className="text-sm font-medium text-white">交易明细</h3>
                 </div>
                 {txsWithBalance.length === 0 ? (
-                    <p className="text-center text-neutral-500 py-8 text-sm">
-                      暂无交易记录
-                    </p>
-                  ) : (
-                    <table className="w-full">
-                      <thead>
-                        <tr className="border-b border-neutral-800">
-                          <th className="text-left text-xs text-neutral-400 px-4 py-2">
-                            日期
-                          </th>
-                          <th className="text-left text-xs text-neutral-400 px-4 py-2">
-                            类型
-                          </th>
-                          <th className="text-left text-xs text-neutral-400 px-4 py-2">
-                            描述
-                          </th>
-                          <th className="text-right text-xs text-neutral-400 px-4 py-2">
-                            金额
-                          </th>
-                          <th className="text-right text-xs text-neutral-400 px-4 py-2">
-                            余额
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {txsWithBalance.map((t) => (
-                          <tr
-                            key={t.id}
-                            className="border-b border-neutral-800/50"
+                  <p className="text-center text-neutral-500 py-8 text-sm">
+                    暂无交易记录
+                  </p>
+                ) : (
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b border-neutral-800">
+                        <th className="text-left text-xs text-neutral-400 px-4 py-2">
+                          日期
+                        </th>
+                        <th className="text-left text-xs text-neutral-400 px-4 py-2">
+                          类型
+                        </th>
+                        <th className="text-left text-xs text-neutral-400 px-4 py-2">
+                          描述
+                        </th>
+                        <th className="text-right text-xs text-neutral-400 px-4 py-2">
+                          金额
+                        </th>
+                        <th className="text-right text-xs text-neutral-400 px-4 py-2">
+                          余额
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {txsWithBalance.map((t) => (
+                        <tr
+                          key={t.id}
+                          className="border-b border-neutral-800/50"
+                        >
+                          <td className="px-4 py-2 text-xs text-neutral-400">
+                            {formatDate(t.transactionDate)}
+                            {t.isAutoGenerated && (
+                              <span className="ml-1 text-neutral-600">
+                                自动
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-4 py-2 text-xs text-neutral-400">
+                            {txTypeLabel(t.type)}
+                          </td>
+                          <td className="px-4 py-2 text-xs text-white">
+                            {t.description}
+                          </td>
+                          <td
+                            className={`px-4 py-2 text-xs text-right font-medium ${
+                              ["income", "asset_income"].includes(t.type)
+                                ? "text-green-400"
+                                : "text-red-400"
+                            }`}
                           >
-                            <td className="px-4 py-2 text-xs text-neutral-400">
-                              {formatDate(t.transactionDate)}
-                              {t.isAutoGenerated && (
-                                <span className="ml-1 text-neutral-600">
-                                  自动
-                                </span>
-                              )}
-                            </td>
-                            <td className="px-4 py-2 text-xs text-neutral-400">
-                              {txTypeLabel(t.type)}
-                            </td>
-                            <td className="px-4 py-2 text-xs text-white">
-                              {t.description}
-                            </td>
-                            <td
-                              className={`px-4 py-2 text-xs text-right font-medium ${
-                                ["income", "asset_income"].includes(t.type)
-                                  ? "text-green-400"
-                                  : "text-red-400"
-                              }`}
-                            >
-                              {["income", "asset_income"].includes(t.type)
-                                ? "+"
-                                : "-"}
-                              {formatMoney(Math.abs(t.amount))}
-                            </td>
-                            <td className="px-4 py-2 text-xs text-right text-white font-medium">
-                              {formatMoney(t.balance)}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  )
-                }
+                            {["income", "asset_income"].includes(t.type)
+                              ? "+"
+                              : "-"}
+                            {formatMoney(Math.abs(t.amount))}
+                          </td>
+                          <td className="px-4 py-2 text-xs text-right text-white font-medium">
+                            {formatMoney(t.balance)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
                 {selected && totalPages(selected.id) > 1 && (
                   <div className="flex items-center justify-between px-4 py-3 border-t border-neutral-800">
                     <span className="text-xs text-neutral-500">
@@ -441,7 +455,9 @@ export default function AssetsPage() {
                     </span>
                     <div className="flex items-center gap-2">
                       <button
-                        onClick={() => loadDetails(selected.id, currentPage(selected.id) - 1)}
+                        onClick={() =>
+                          loadDetails(selected.id, currentPage(selected.id) - 1)
+                        }
                         disabled={currentPage(selected.id) <= 1}
                         className="text-xs text-neutral-400 hover:text-white disabled:opacity-30 px-2 py-1 rounded transition-colors"
                       >
@@ -451,8 +467,12 @@ export default function AssetsPage() {
                         {currentPage(selected.id)} / {totalPages(selected.id)}
                       </span>
                       <button
-                        onClick={() => loadDetails(selected.id, currentPage(selected.id) + 1)}
-                        disabled={currentPage(selected.id) >= totalPages(selected.id)}
+                        onClick={() =>
+                          loadDetails(selected.id, currentPage(selected.id) + 1)
+                        }
+                        disabled={
+                          currentPage(selected.id) >= totalPages(selected.id)
+                        }
                         className="text-xs text-neutral-400 hover:text-white disabled:opacity-30 px-2 py-1 rounded transition-colors"
                       >
                         下一页
@@ -498,21 +518,29 @@ export default function AssetsPage() {
                     </div>
                     <form onSubmit={handleEditSubmit} className="space-y-4">
                       <div>
-                        <label className="block text-sm text-neutral-400 mb-1">名称</label>
+                        <label className="block text-sm text-neutral-400 mb-1">
+                          名称
+                        </label>
                         <input
                           type="text"
                           required
                           value={editForm.name}
-                          onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                          onChange={(e) =>
+                            setEditForm({ ...editForm, name: e.target.value })
+                          }
                           className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
                         />
                       </div>
                       <div className="grid grid-cols-2 gap-4">
                         <div>
-                          <label className="block text-sm text-neutral-400 mb-1">类型</label>
+                          <label className="block text-sm text-neutral-400 mb-1">
+                            类型
+                          </label>
                           <select
                             value={editForm.type}
-                            onChange={(e) => setEditForm({ ...editForm, type: e.target.value })}
+                            onChange={(e) =>
+                              setEditForm({ ...editForm, type: e.target.value })
+                            }
                             className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
                           >
                             <option value="real_estate">房产</option>
@@ -523,45 +551,70 @@ export default function AssetsPage() {
                           </select>
                         </div>
                         <div>
-                          <label className="block text-sm text-neutral-400 mb-1">当前价值 (元)</label>
+                          <label className="block text-sm text-neutral-400 mb-1">
+                            当前价值 (元)
+                          </label>
                           <input
                             type="number"
                             step="0.01"
                             required
                             value={editForm.currentValue}
-                            onChange={(e) => setEditForm({ ...editForm, currentValue: e.target.value })}
+                            onChange={(e) =>
+                              setEditForm({
+                                ...editForm,
+                                currentValue: e.target.value,
+                              })
+                            }
                             className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
                           />
                         </div>
                       </div>
                       <div className="grid grid-cols-2 gap-4">
                         <div>
-                          <label className="block text-sm text-neutral-400 mb-1">月收入 (元)</label>
+                          <label className="block text-sm text-neutral-400 mb-1">
+                            月收入 (元)
+                          </label>
                           <input
                             type="number"
                             step="0.01"
                             value={editForm.monthlyIncome}
-                            onChange={(e) => setEditForm({ ...editForm, monthlyIncome: e.target.value })}
+                            onChange={(e) =>
+                              setEditForm({
+                                ...editForm,
+                                monthlyIncome: e.target.value,
+                              })
+                            }
                             className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
                           />
                         </div>
                         <div>
-                          <label className="block text-sm text-neutral-400 mb-1">年化收益率 (%)</label>
+                          <label className="block text-sm text-neutral-400 mb-1">
+                            年化收益率 (%)
+                          </label>
                           <input
                             type="number"
                             step="0.01"
                             value={editForm.annualYield}
-                            onChange={(e) => setEditForm({ ...editForm, annualYield: e.target.value })}
+                            onChange={(e) =>
+                              setEditForm({
+                                ...editForm,
+                                annualYield: e.target.value,
+                              })
+                            }
                             className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
                           />
                         </div>
                       </div>
                       <div>
-                        <label className="block text-sm text-neutral-400 mb-1">备注</label>
+                        <label className="block text-sm text-neutral-400 mb-1">
+                          备注
+                        </label>
                         <input
                           type="text"
                           value={editForm.note}
-                          onChange={(e) => setEditForm({ ...editForm, note: e.target.value })}
+                          onChange={(e) =>
+                            setEditForm({ ...editForm, note: e.target.value })
+                          }
                           className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
                         />
                       </div>

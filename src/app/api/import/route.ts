@@ -1,11 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
-import {
-  assets,
-  liabilities,
-  transactions,
-  categories,
-} from "@/db/schema";
+import { assets, liabilities, transactions, categories } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import { requireUser } from "@/lib/auth";
 
@@ -90,9 +85,9 @@ export async function POST(request: Request) {
     if (existingAsset || existingLiability) {
       return NextResponse.json(
         {
-          error: "当前用户已有数据，请先清空后再导入。如需重新导入，请在页面勾选「覆盖已有数据」。",
+          error: "当前用户已有数据，请先到「数据管理」页面清空数据后再导入。",
         },
-        { status: 409 }
+        { status: 409 },
       );
     }
 
@@ -125,8 +120,8 @@ export async function POST(request: Request) {
           and(
             eq(categories.userId, user.id),
             eq(categories.name, cat.name),
-            eq(categories.type, cat.type)
-          )
+            eq(categories.type, cat.type),
+          ),
         )
         .limit(1);
 
@@ -138,10 +133,7 @@ export async function POST(request: Request) {
           name: cat.name,
           type: cat.type,
         });
-        categoryMap.set(
-          `${cat.type}:${cat.name}`,
-          Number(result[0].insertId)
-        );
+        categoryMap.set(`${cat.type}:${cat.name}`, Number(result[0].insertId));
       }
     }
 
@@ -173,7 +165,7 @@ export async function POST(request: Request) {
         // 资产当前值 = 所有 detail 的 amount 总和
         const currentValue = prop.details.reduce(
           (sum: number, d: DetailItem) => sum + d.amount,
-          0
+          0,
         );
 
         const result = await db.insert(assets).values({
@@ -231,8 +223,7 @@ export async function POST(request: Request) {
       } else {
         // ---------- 导入负债 ----------
         const liabilityType = LIABILITY_TYPE_MAP[pType] || "personal_loan";
-        const categoryName =
-          liabilityType === "mortgage" ? "房贷" : "个人贷款";
+        const categoryName = liabilityType === "mortgage" ? "房贷" : "个人贷款";
         const categoryKey = `liability:${categoryName}`;
         const categoryId = categoryMap.get(categoryKey) ?? null;
 
@@ -359,7 +350,7 @@ export async function POST(request: Request) {
     console.error("Import error:", e);
     return NextResponse.json(
       { error: "导入失败: " + ((e as Error).message || "未知错误") },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

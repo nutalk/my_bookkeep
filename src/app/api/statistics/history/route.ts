@@ -33,14 +33,17 @@ export async function GET(request: Request) {
     const allLiabilities = await db
       .select()
       .from(liabilities)
-      .where(and(eq(liabilities.isActive, true), eq(liabilities.userId, user.id)));
+      .where(
+        and(eq(liabilities.isActive, true), eq(liabilities.userId, user.id)),
+      );
 
     // Build current balances
     const assetCurrent: Record<number, { name: string; value: number }> = {};
     for (const a of allAssets) {
       assetCurrent[a.id] = { name: a.name, value: a.currentValue };
     }
-    const liabilityCurrent: Record<number, { name: string; value: number }> = {};
+    const liabilityCurrent: Record<number, { name: string; value: number }> =
+      {};
     for (const l of allLiabilities) {
       liabilityCurrent[l.id] = { name: l.name, value: l.remainingPrincipal };
     }
@@ -71,10 +74,7 @@ export async function GET(request: Request) {
         })
         .from(transactions)
         .where(
-          and(
-            eq(transactions.userId, user.id),
-            eq(transactions.assetId, aid)
-          )
+          and(eq(transactions.userId, user.id), eq(transactions.assetId, aid)),
         )
         .orderBy(asc(transactions.transactionDate));
       allTxs.push(...txs);
@@ -95,8 +95,8 @@ export async function GET(request: Request) {
         .where(
           and(
             eq(transactions.userId, user.id),
-            eq(transactions.liabilityId, lid)
-          )
+            eq(transactions.liabilityId, lid),
+          ),
         )
         .orderBy(asc(transactions.transactionDate));
       allTxs.push(...txs);
@@ -106,7 +106,7 @@ export async function GET(request: Request) {
     allTxs.sort(
       (a, b) =>
         new Date(a.transactionDate).getTime() -
-        new Date(b.transactionDate).getTime()
+        new Date(b.transactionDate).getTime(),
     );
 
     // Compute initial balances by walking backwards from current
@@ -120,6 +120,8 @@ export async function GET(request: Request) {
           } else if (t.type === "expense") {
             bal += t.amount;
           }
+          // asset_value_change sets an absolute value, cannot undo cleanly;
+          // forward walk will set the correct value at the transaction date.
         }
       }
       assetBalances[a.id] = bal;
@@ -175,6 +177,8 @@ export async function GET(request: Request) {
             assetBalances[t.assetId] += t.amount;
           } else if (t.type === "expense") {
             assetBalances[t.assetId] -= t.amount;
+          } else if (t.type === "asset_value_change") {
+            assetBalances[t.assetId] = t.amount;
           }
         }
         if (t.liabilityId && t.liabilityId in liabilityBalances) {
@@ -210,7 +214,10 @@ export async function GET(request: Request) {
       }));
 
       const totalAssets = assetDetails.reduce((s, a) => s + a.value, 0);
-      const totalLiabilities = liabilityDetails.reduce((s, l) => s + l.value, 0);
+      const totalLiabilities = liabilityDetails.reduce(
+        (s, l) => s + l.value,
+        0,
+      );
 
       return {
         month: monthKey,
@@ -228,7 +235,7 @@ export async function GET(request: Request) {
         totalAssets: allAssets.reduce((s, a) => s + a.currentValue, 0),
         totalLiabilities: allLiabilities.reduce(
           (s, l) => s + l.remainingPrincipal,
-          0
+          0,
         ),
       },
     });
@@ -236,9 +243,6 @@ export async function GET(request: Request) {
     if ((e as Error).message === "UNAUTHORIZED") {
       return NextResponse.json({ error: "请先登录" }, { status: 401 });
     }
-    return NextResponse.json(
-      { error: "获取历史数据失败" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "获取历史数据失败" }, { status: 500 });
   }
 }

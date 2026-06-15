@@ -58,9 +58,9 @@ export default function ReconciliationsPage() {
       fetch("/api/liabilities?active=true").then((r) => r.json()),
     ]).then(([recs, a, l]) => {
       if (mounted) {
-        setReconciliations(recs);
-        setAssets(a);
-        setLiabilities(l);
+        setReconciliations(Array.isArray(recs) ? recs : []);
+        setAssets(Array.isArray(a) ? a : []);
+        setLiabilities(Array.isArray(l) ? l : []);
         setLoading(false);
       }
     });

@@ -72,8 +72,8 @@ export default function Home() {
       fetch("/api/liabilities").then((r) => r.json()),
     ]).then(([me, a, l]) => {
       if (me.user) setUser(me.user);
-      setAssets(a);
-      setLiabilities(l);
+      setAssets(Array.isArray(a) ? a : []);
+      setLiabilities(Array.isArray(l) ? l : []);
       setLoading(false);
     }).catch(() => setLoading(false));
   }, []);

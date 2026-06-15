@@ -87,9 +87,10 @@ export default function LiabilitiesPage() {
       .then((r) => r.json())
       .then((data) => {
         if (mounted) {
-          setLiabilities(data);
+          const list = Array.isArray(data) ? data : [];
+          setLiabilities(list);
           setLoading(false);
-          if (data.length > 0 && !selectedId) setSelectedId(data[0].id);
+          if (list.length > 0 && !selectedId) setSelectedId(list[0].id);
         }
       });
     return () => {
@@ -102,9 +103,10 @@ export default function LiabilitiesPage() {
     fetch("/api/liabilities")
       .then((r) => r.json())
       .then((data) => {
-        setLiabilities(data);
-        if (selectedId && !data.find((l: Liability) => l.id === selectedId)) {
-          setSelectedId(data.length > 0 ? data[0].id : null);
+        const list = Array.isArray(data) ? data : [];
+        setLiabilities(list);
+        if (selectedId && !list.find((l: Liability) => l.id === selectedId)) {
+          setSelectedId(list.length > 0 ? list[0].id : null);
         }
       });
   };

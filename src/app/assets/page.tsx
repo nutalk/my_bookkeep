@@ -52,9 +52,10 @@ export default function AssetsPage() {
       .then((r) => r.json())
       .then((data) => {
         if (mounted) {
-          setAssets(data);
+          const list = Array.isArray(data) ? data : [];
+          setAssets(list);
           setLoading(false);
-          if (data.length > 0 && !selectedId) setSelectedId(data[0].id);
+          if (list.length > 0 && !selectedId) setSelectedId(list[0].id);
         }
       });
     return () => {
@@ -67,9 +68,10 @@ export default function AssetsPage() {
     fetch("/api/assets")
       .then((r) => r.json())
       .then((data) => {
-        setAssets(data);
-        if (selectedId && !data.find((a: Asset) => a.id === selectedId)) {
-          setSelectedId(data.length > 0 ? data[0].id : null);
+        const list = Array.isArray(data) ? data : [];
+        setAssets(list);
+        if (selectedId && !list.find((a: Asset) => a.id === selectedId)) {
+          setSelectedId(list.length > 0 ? list[0].id : null);
         }
       });
   };

@@ -10,6 +10,7 @@ const connection = mysql.createPool({
   database: process.env.MYSQL_DATABASE || "family_balance_sheet",
   waitForConnections: true,
   connectionLimit: 10,
+  ssl: { rejectUnauthorized: false },
 });
 
 export const db = drizzle(connection, { schema, mode: "default" });

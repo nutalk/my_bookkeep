@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { db } from "@/db";
+import { db, getInsertId } from "@/db";
 import { reconciliations, transactions } from "@/db/schema";
 import { eq, and, desc } from "drizzle-orm";
 import { requireUser } from "@/lib/auth";
@@ -24,7 +24,14 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const user = await requireUser();
-    const body = await request.json();
+    const body = (await request.json()) as {
+      actualBalance: number;
+      expectedBalance: number;
+      assetId?: number | null;
+      liabilityId?: number | null;
+      reconciliationDate: string;
+      note?: string | null;
+    };
 
     const difference = body.actualBalance - body.expectedBalance;
 
@@ -39,7 +46,7 @@ export async function POST(request: Request) {
       note: body.note ?? null,
     });
 
-    const reconciliationId = Number(reconciliationResult[0].insertId);
+    const reconciliationId = getInsertId(reconciliationResult);
     const [reconciliation] = await db
       .select()
       .from(reconciliations)
@@ -60,7 +67,7 @@ export async function POST(request: Request) {
         note: `自动对账差额调整`,
       });
 
-      const txInsertId = Number(txResult[0].insertId);
+      const txInsertId = getInsertId(txResult);
       const [tx] = await db
         .select()
         .from(transactions)

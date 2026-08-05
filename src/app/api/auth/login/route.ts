@@ -2,13 +2,16 @@ import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { users } from "@/db/schema";
 import { eq } from "drizzle-orm";
-import bcrypt from "bcryptjs";
 import { createSession } from "@/lib/auth";
 import { cookies } from "next/headers";
+import { verifyPassword } from "@/lib/password";
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
+    const body = (await request.json()) as {
+      phone: string;
+      password: string;
+    };
     const { phone, password } = body;
 
     if (!phone || !password) {
@@ -40,7 +43,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const valid = await bcrypt.compare(password, user.passwordHash);
+    const valid = await verifyPassword(password, user.passwordHash);
     if (!valid) {
       return NextResponse.json(
         { error: "手机号或密码错误" },

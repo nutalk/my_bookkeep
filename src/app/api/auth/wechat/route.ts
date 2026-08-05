@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { db } from "@/db";
+import { db, getInsertId } from "@/db";
 import { users } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { createSession } from "@/lib/auth";
@@ -7,7 +7,7 @@ import { cookies } from "next/headers";
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
+    const body = (await request.json()) as { code: string };
     const { code } = body;
 
     if (!code) {
@@ -30,7 +30,12 @@ export async function POST(request: Request) {
     const tokenRes = await fetch(
       `https://api.weixin.qq.com/sns/oauth2/access_token?appid=${appId}&secret=${appSecret}&code=${code}&grant_type=authorization_code`
     );
-    const tokenData = await tokenRes.json();
+    const tokenData = (await tokenRes.json()) as {
+      errcode?: number;
+      errmsg?: string;
+      openid: string;
+      access_token: string;
+    };
 
     if (tokenData.errcode) {
       return NextResponse.json(
@@ -44,7 +49,10 @@ export async function POST(request: Request) {
     const userInfoRes = await fetch(
       `https://api.weixin.qq.com/sns/userinfo?access_token=${access_token}&openid=${openid}&lang=zh_CN`
     );
-    const userInfo = await userInfoRes.json();
+    const userInfo = (await userInfoRes.json()) as {
+      nickname?: string;
+      headimgurl?: string;
+    };
 
     const existingUser = await db
       .select()
@@ -71,7 +79,7 @@ export async function POST(request: Request) {
         nickname: userInfo.nickname || "微信用户",
         avatarUrl: userInfo.headimgurl || null,
       });
-      userId = Number(result[0].insertId);
+      userId = getInsertId(result);
     }
 
     const token = await createSession(userId);

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { db } from "@/db";
+import { db, getInsertId } from "@/db";
 import { assets, liabilities, transactions, categories } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import { requireUser } from "@/lib/auth";
@@ -133,7 +133,7 @@ export async function POST(request: Request) {
           name: cat.name,
           type: cat.type,
         });
-        categoryMap.set(`${cat.type}:${cat.name}`, Number(result[0].insertId));
+        categoryMap.set(`${cat.type}:${cat.name}`, getInsertId(result));
       }
     }
 
@@ -185,7 +185,7 @@ export async function POST(request: Request) {
           note: prop.comment || null,
         });
 
-        const newAssetId = Number(result[0].insertId);
+        const newAssetId = getInsertId(result);
         stats.assetsCreated++;
 
         // 创建初始交易记录（第一条明细作为初始金额）
@@ -286,7 +286,7 @@ export async function POST(request: Request) {
           note: prop.comment || null,
         });
 
-        const newLiabilityId = Number(result[0].insertId);
+        const newLiabilityId = getInsertId(result);
         stats.liabilitiesCreated++;
 
         // 创建交易记录

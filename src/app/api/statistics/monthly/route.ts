@@ -53,7 +53,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const user = await requireUser();
-    const body = await request.json();
+    const body = (await request.json()) as { month: string };
     const month = body.month;
     const stats = await calculateMonthlyStats(month, user.id);
 

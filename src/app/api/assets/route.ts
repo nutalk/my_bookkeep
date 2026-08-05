@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { db } from "@/db";
+import { db, getInsertId } from "@/db";
 import { assets, transactions } from "@/db/schema";
 import { eq, and, sql } from "drizzle-orm";
 import { requireUser } from "@/lib/auth";
@@ -55,7 +55,18 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const user = await requireUser();
-    const body = await request.json();
+    const body = (await request.json()) as {
+      name: string;
+      type: string;
+      categoryId?: number | null;
+      currentValue?: number;
+      monthlyIncome?: number;
+      annualYield?: number;
+      incomeFrequency?: string | null;
+      incomeDay?: number | null;
+      isActive?: boolean;
+      note?: string | null;
+    };
     const result = await db.insert(assets).values({
       userId: user.id,
       name: body.name,
@@ -70,7 +81,7 @@ export async function POST(request: Request) {
       note: body.note ?? null,
     });
 
-    const insertId = Number(result[0].insertId);
+    const insertId = getInsertId(result);
 
     // Create initial transaction for the asset's opening balance
     if (body.currentValue && body.currentValue > 0) {
@@ -102,7 +113,19 @@ export async function POST(request: Request) {
 export async function PUT(request: Request) {
   try {
     const user = await requireUser();
-    const body = await request.json();
+    const body = (await request.json()) as {
+      id: number;
+      name?: string;
+      type?: string;
+      categoryId?: number | null;
+      currentValue?: number;
+      monthlyIncome?: number;
+      annualYield?: number;
+      incomeFrequency?: string | null;
+      incomeDay?: number | null;
+      isActive?: boolean;
+      note?: string | null;
+    };
     const { id, ...updates } = body;
     await db
       .update(assets)

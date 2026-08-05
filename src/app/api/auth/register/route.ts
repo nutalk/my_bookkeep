@@ -1,14 +1,18 @@
 import { NextResponse } from "next/server";
-import { db } from "@/db";
+import { db, getInsertId } from "@/db";
 import { users } from "@/db/schema";
 import { eq } from "drizzle-orm";
-import bcrypt from "bcryptjs";
 import { createSession } from "@/lib/auth";
 import { cookies } from "next/headers";
+import { hashPassword } from "@/lib/password";
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
+    const body = (await request.json()) as {
+      phone: string;
+      password: string;
+      nickname?: string;
+    };
     const { phone, password, nickname } = body;
 
     if (!phone || !password) {
@@ -45,7 +49,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const passwordHash = await bcrypt.hash(password, 10);
+    const passwordHash = await hashPassword(password);
 
     const result = await db.insert(users).values({
       phone,
@@ -53,7 +57,7 @@ export async function POST(request: Request) {
       nickname: nickname || phone.slice(0, 3) + "****" + phone.slice(7),
     });
 
-    const userId = Number(result[0].insertId);
+    const userId = getInsertId(result);
 
     const token = await createSession(userId);
     const cookieStore = await cookies();

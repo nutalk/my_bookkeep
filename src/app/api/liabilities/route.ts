@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { db } from "@/db";
+import { db, getInsertId } from "@/db";
 import { liabilities, transactions } from "@/db/schema";
 import { eq, and, sql } from "drizzle-orm";
 import { requireUser } from "@/lib/auth";
@@ -47,7 +47,20 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const user = await requireUser();
-    const body = await request.json();
+    const body = (await request.json()) as {
+      name: string;
+      type: string;
+      categoryId?: number | null;
+      totalPrincipal: number;
+      remainingPrincipal?: number;
+      annualRate?: number;
+      monthlyPayment?: number;
+      paymentDay?: number | null;
+      startDate?: string;
+      endDate?: string;
+      isActive?: boolean;
+      note?: string | null;
+    };
     const result = await db.insert(liabilities).values({
       userId: user.id,
       name: body.name,
@@ -64,7 +77,7 @@ export async function POST(request: Request) {
       note: body.note ?? null,
     });
 
-    const insertId = Number(result[0].insertId);
+    const insertId = getInsertId(result);
     const [newLiability] = await db
       .select()
       .from(liabilities)
@@ -85,7 +98,22 @@ export async function POST(request: Request) {
 export async function PUT(request: Request) {
   try {
     const user = await requireUser();
-    const body = await request.json();
+    const body = (await request.json()) as {
+      id: number;
+      name?: string;
+      type?: string;
+      categoryId?: number | null;
+      totalPrincipal?: number;
+      remainingPrincipal?: number;
+      annualRate?: number;
+      repaymentMethod?: string;
+      monthlyPayment?: number;
+      paymentDay?: number | null;
+      startDate?: string;
+      endDate?: Date | null;
+      isActive?: boolean;
+      note?: string | null;
+    };
     const { id, ...updates } = body;
     await db
       .update(liabilities)

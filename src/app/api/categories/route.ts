@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { db } from "@/db";
+import { db, getInsertId } from "@/db";
 import { categories } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import { requireUser } from "@/lib/auth";
@@ -33,7 +33,11 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const user = await requireUser();
-    const body = await request.json();
+    const body = (await request.json()) as {
+      name: string;
+      type: string;
+      parentId?: number | null;
+    };
     const result = await db.insert(categories).values({
       userId: user.id,
       name: body.name,
@@ -41,7 +45,7 @@ export async function POST(request: Request) {
       parentId: body.parentId ?? null,
     });
 
-    const insertId = Number(result[0].insertId);
+    const insertId = getInsertId(result);
     const [newCategory] = await db
       .select()
       .from(categories)
@@ -62,7 +66,12 @@ export async function POST(request: Request) {
 export async function PUT(request: Request) {
   try {
     const user = await requireUser();
-    const body = await request.json();
+    const body = (await request.json()) as {
+      id: number;
+      name?: string;
+      type?: string;
+      parentId?: number | null;
+    };
     const { id, ...updates } = body;
     await db
       .update(categories)

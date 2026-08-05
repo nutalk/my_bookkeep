@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
-import { db } from "@/db";
+import { db, getInsertId } from "@/db";
 import { chatSessions } from "@/db/schema";
 import { eq, desc } from "drizzle-orm";
 
@@ -32,12 +32,12 @@ export async function GET() {
 export async function POST() {
   try {
     const user = await requireUser();
-    const [result] = await db.insert(chatSessions).values({
+    const result = await db.insert(chatSessions).values({
       userId: user.id,
       title: "新对话",
     });
 
-    const id = Number(result.insertId);
+    const id = getInsertId(result);
     const [session] = await db
       .select()
       .from(chatSessions)

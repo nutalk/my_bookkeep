@@ -166,7 +166,7 @@ export default function LiabilitiesPage() {
         }),
       });
       if (!res.ok) {
-        const data = await res.json();
+        const data = (await res.json()) as { error?: string };
         setEditError(data.error || "保存失败");
         return;
       }
@@ -199,7 +199,7 @@ export default function LiabilitiesPage() {
   const loadDetails = async (liabilityId: number, page = 1) => {
     const offset = (page - 1) * txLimit;
     const res = await fetch(`/api/transactions?liabilityId=${liabilityId}&limit=${txLimit}&offset=${offset}`);
-    const result = await res.json();
+    const result = (await res.json()) as { data: Transaction[]; total: number };
     setDetails((d) => ({ ...d, [liabilityId]: result.data }));
     setTxTotals((t) => ({ ...t, [liabilityId]: result.total }));
     setTxPages((p) => ({ ...p, [liabilityId]: page }));

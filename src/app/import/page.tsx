@@ -68,7 +68,16 @@ export default function DataManagementPage() {
         body: JSON.stringify(data),
       });
 
-      const json = await res.json();
+      const json = (await res.json()) as {
+        success: boolean;
+        message: string;
+        error?: string;
+        stats?: {
+          assetsCreated: number;
+          liabilitiesCreated: number;
+          transactionsCreated: number;
+        };
+      };
 
       if (!res.ok) {
         throw new Error(json.error || "导入失败");
@@ -104,7 +113,7 @@ export default function DataManagementPage() {
     setExportCounts(null);
     try {
       const res = await fetch("/api/export");
-      const json = await res.json();
+      const json = (await res.json()) as { error?: string; counts: Record<string, number> };
       if (!res.ok) throw new Error(json.error || "获取数据失败");
       setExportCounts(json.counts);
     } catch (e) {
@@ -143,7 +152,7 @@ export default function DataManagementPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ confirm: clearConfirm }),
       });
-      const json = await res.json();
+      const json = (await res.json()) as { error?: string; message: string };
 
       if (!res.ok) {
         throw new Error(json.error || "清空失败");

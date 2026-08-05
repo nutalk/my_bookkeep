@@ -19,47 +19,48 @@
 | Next.js 16 | React 框架 (App Router) |
 | React 19 | 前端 UI |
 | Tailwind CSS 4 | 样式 |
-| MySQL 8.0 | 数据库 |
-| Drizzle ORM | 数据库 ORM |
-| mysql2 | MySQL 驱动 |
-| bcryptjs | 密码加密 |
-| Bun | 包管理 & 运行时 |
-| Docker | 容器化部署 |
+| Cloudflare D1 | 数据库 (SQLite) |
+| Drizzle ORM | 数据库 ORM (sqlite 方言) |
+| Cloudflare Workers | 部署平台 (@opennextjs/cloudflare) |
+| Web Crypto (PBKDF2) | 密码加密 |
+| Bun | 包管理 & 构建 |
 
 ## 快速开始
 
 ### 环境要求
 
 - [Bun](https://bun.sh/) (v1.x)
-- MySQL 8.0+
+- [Node.js](https://nodejs.org/) 18+（wrangler 需要）
 
-### 1. 准备 MySQL
-
-```sql
-CREATE DATABASE bookkeep CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-CREATE USER 'bookkeep'@'%' IDENTIFIED BY 'your_password';
-GRANT ALL PRIVILEGES ON bookkeep.* TO 'bookkeep'@'%';
-FLUSH PRIVILEGES;
-```
-
-### 2. 本地开发
+### 1. 安装依赖
 
 ```bash
-# 克隆项目
-git clone https://github.com/nutalk/my_bookkeep.git
-cd my_bookkeep
-
-# 安装依赖
 bun install
+```
 
-# 配置环境变量
-cp .env.example .env
-# 编辑 .env 填写 MySQL 连接信息
+### 2. 配置 Cloudflare 凭据
 
-# 初始化数据库表
+登录 Cloudflare CLI：
+
+```bash
+bunx wrangler login
+```
+
+### 3. 创建 D1 数据库
+
+```bash
+bunx wrangler d1 create bookkeep-db
+```
+
+将输出的 `database_id` 填入 `wrangler.jsonc` 的 `d1_databases[0].database_id`。
+
+### 4. 本地开发
+
+```bash
+# 生成本地 D1 数据库并应用迁移
 bun db:migrate
 
-# 启动开发服务器
+# 启动开发服务器（D1 本地模拟）
 bun dev
 ```
 
@@ -69,56 +70,13 @@ bun dev
 
 | 变量 | 说明 | 是否必填 |
 |------|------|---------|
-| `MYSQL_HOST` | MySQL 地址 | 是 |
-| `MYSQL_PORT` | MySQL 端口 | 否，默认 3306 |
-| `MYSQL_USER` | MySQL 用户名 | 是 |
-| `MYSQL_PASSWORD` | MySQL 密码 | 是 |
-| `MYSQL_DATABASE` | 数据库名 | 是 |
 | `WECHAT_APP_ID` | 微信开放平台 AppID | 否 |
 | `WECHAT_APP_SECRET` | 微信开放平台 AppSecret | 否 |
+| `NEXT_PUBLIC_WECHAT_APP_ID` | 微信开放平台 AppID（前端） | 否 |
 
-## Docker 部署
+本地开发时写入 `.dev.vars`（本地模拟的 binding 由 wrangler 注入）。
 
-### 准备
-
-确保已有可用的 MySQL 服务，并已创建数据库和用户（见上方 SQL）。
-
-### 部署
-
-```bash
-# 克隆项目
-git clone https://github.com/nutalk/my_bookkeep.git
-cd my_bookkeep
-
-# 配置环境变量
-cp .env.example .env
-# 编辑 .env 填写你的 MySQL 连接信息
-
-# 启动服务
-docker-compose up -d
-```
-
-访问 http://localhost:3000
-
-数据库表结构会在容器启动时自动创建（通过 `docker-entrypoint.sh`）。
-
-### 使用已有 MySQL
-
-```bash
-docker run -d \
-  --name bookkeep \
-  -p 3000:3000 \
-  -e MYSQL_HOST=your_mysql_host \
-  -e MYSQL_PORT=3306 \
-  -e MYSQL_USER=bookkeep \
-  -e MYSQL_PASSWORD=your_password \
-  -e MYSQL_DATABASE=bookkeep \
-  nutalk/my-bookkeep:latest
-```
-
-## CI/CD
-
-项目配置了 GitHub Actions，推送到 `main` 分支时自动构建 Docker 镜像并上传到 Docker Hub。
+## Cloudflare 部署
 
 ### 配置 GitHub Secrets
 
@@ -126,14 +84,26 @@ docker run -d \
 
 | Secret | 说明 |
 |--------|------|
-| `DOCKERHUB_USERNAME` | Docker Hub 用户名 |
-| `DOCKERHUB_TOKEN` | Docker Hub Access Token |
+| `CLOUDFLARE_API_TOKEN` | Cloudflare API Token（具备 Workers 和 D1 编辑权限） |
+| `CLOUDFLARE_ACCOUNT_ID` | Cloudflare 账户 ID |
 
 ### 触发条件
 
-- 推送到 `main` 分支 → 构建并推送 `latest` 标签
-- 创建 `v*` 标签 → 构建并推送版本标签 (如 `v1.0.0`)
-- Pull Request → 仅构建，不推送
+- 推送到 `main` 分支 → 自动应用 D1 迁移并部署到 Workers
+- 创建 `v*` 标签 → 同上
+- Pull Request → 仅构建验证
+
+### 手动部署
+
+```bash
+bun run deploy
+```
+
+### 远程数据库迁移
+
+```bash
+bun db:migrate:remote
+```
 
 ## 项目结构
 
@@ -163,12 +133,15 @@ src/
 ## 开发命令
 
 ```bash
-bun dev            # 启动开发服务器
-bun build          # 生产构建
-bun start          # 启动生产服务器
-bun lint           # ESLint 检查
-bun typecheck      # TypeScript 类型检查
-bun db:migrate     # 初始化/更新数据库表
+bun dev              # 启动开发服务器
+bun build            # Next.js 生产构建
+bun lint             # ESLint 检查
+bun typecheck        # TypeScript 类型检查
+bun db:generate      # 生成 Drizzle 迁移
+bun db:migrate       # 应用迁移到本地 D1
+bun db:migrate:remote # 应用迁移到远程 D1
+bun run preview      # OpenNext 本地预览（Workers 运行时）
+bun run deploy       # 构建并部署到 Cloudflare Workers
 ```
 
 ## License

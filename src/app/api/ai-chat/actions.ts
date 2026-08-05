@@ -1,4 +1,4 @@
-import { db } from "@/db";
+import { db, getInsertId } from "@/db";
 import { transactions, assets, liabilities } from "@/db/schema";
 import { eq } from "drizzle-orm";
 
@@ -167,7 +167,7 @@ async function createTransaction(
     return { success: false, message: `无效的交易类型: ${type}` };
   }
 
-  const [result] = await db.insert(transactions).values({
+  const result = await db.insert(transactions).values({
     userId,
     type: type as string,
     amount: Number(amount),
@@ -181,7 +181,7 @@ async function createTransaction(
     note: note ? String(note) : null,
   });
 
-  const insertId = Number(result.insertId);
+  const insertId = getInsertId(result);
 
   // Read back to verify
   const [saved] = await db
@@ -222,7 +222,7 @@ async function createAsset(
   }
 
   const val = currentValue !== undefined ? Number(currentValue) : 0;
-  const [result] = await db.insert(assets).values({
+  const result = await db.insert(assets).values({
     userId,
     name: String(name),
     type: type as string,
@@ -232,7 +232,7 @@ async function createAsset(
     note: note ? String(note) : null,
   });
 
-  const insertId = Number(result.insertId);
+  const insertId = getInsertId(result);
 
   // Read back to verify
   const [saved] = await db.select().from(assets).where(eq(assets.id, insertId));
@@ -284,7 +284,7 @@ async function createLiability(
   }
 
   const principal = Number(totalPrincipal);
-  const [result] = await db.insert(liabilities).values({
+  const result = await db.insert(liabilities).values({
     userId,
     name: String(name),
     type: type as string,
@@ -298,7 +298,7 @@ async function createLiability(
     note: note ? String(note) : null,
   });
 
-  const insertId = Number(result.insertId);
+  const insertId = getInsertId(result);
 
   // Read back to verify
   const [saved] = await db

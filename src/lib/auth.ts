@@ -2,12 +2,19 @@ import { cookies } from "next/headers";
 import { db } from "@/db";
 import { sessions, users } from "@/db/schema";
 import { eq, lte } from "drizzle-orm";
-import { randomBytes } from "crypto";
 
 const TOKEN_EXPIRY_DAYS = 30;
 
+function generateToken(): string {
+  // Web Crypto 随机 token（兼容 Cloudflare Workers）
+  const bytes = crypto.getRandomValues(new Uint8Array(32));
+  return Array.from(bytes)
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
 export async function createSession(userId: number): Promise<string> {
-  const token = randomBytes(32).toString("hex");
+  const token = generateToken();
   const expiresAt = new Date();
   expiresAt.setDate(expiresAt.getDate() + TOKEN_EXPIRY_DAYS);
 

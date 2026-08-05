@@ -136,7 +136,7 @@ export default function AIChatPage() {
       });
 
       if (!res.ok) {
-        const err = await res.json().catch(() => ({ error: "请求失败" }));
+        const err = (await res.json().catch(() => ({ error: "请求失败" }))) as { error: string };
         setStreamingContent(`**错误**: ${err.error || `HTTP ${res.status}`}`);
         setStreaming(false);
         return;

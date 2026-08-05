@@ -492,11 +492,11 @@ export function TransactionForm({ onSuccess }: { onSuccess?: () => void }) {
   useState(() => {
     fetch("/api/assets?active=true")
       .then((r) => r.json())
-      .then((data) => setAssets(data.map((a: { id: number; name: string }) => ({ id: a.id, name: a.name }))))
+      .then((data) => setAssets((data as { id: number; name: string }[]).map((a) => ({ id: a.id, name: a.name }))))
       .catch(() => {});
     fetch("/api/liabilities?active=true")
       .then((r) => r.json())
-      .then((data) => setLiabilities(data.map((l: { id: number; name: string }) => ({ id: l.id, name: l.name }))))
+      .then((data) => setLiabilities((data as { id: number; name: string }[]).map((l) => ({ id: l.id, name: l.name }))))
       .catch(() => {});
   });
 

@@ -1,0 +1,31 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "my-bookkeep",
+  "main": ".open-next/worker.js",
+  "compatibility_date": "2024-12-30",
+  "compatibility_flags": [
+    "nodejs_compat",
+    "global_fetch_strictly_public"
+  ],
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+  "services": [
+    {
+      "binding": "WORKER_SELF_REFERENCE",
+      "service": "my-bookkeep"
+    }
+  ],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "bookkeep-db",
+      "database_id": "<replace-with-your-d1-database-id>",
+      "migrations_dir": "src/db/migrations"
+    }
+  ],
+  "vars": {
+    "NEXT_PUBLIC_WECHAT_APP_ID": ""
+  }
+}

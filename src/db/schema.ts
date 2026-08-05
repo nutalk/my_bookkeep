@@ -1,178 +1,206 @@
 import {
-  mysqlTable,
-  int,
-  varchar,
+  sqliteTable,
+  integer,
   text,
-  double,
-  datetime,
-  boolean,
-  serial,
-} from "drizzle-orm/mysql-core";
+  real,
+} from "drizzle-orm/sqlite-core";
 
 // ========== 用户 ==========
 
-export const users = mysqlTable("users", {
-  id: serial("id").primaryKey(),
-  phone: varchar("phone", { length: 20 }).notNull().unique(),
-  passwordHash: varchar("password_hash", { length: 255 }),
-  nickname: varchar("nickname", { length: 50 }),
-  wechatOpenid: varchar("wechat_openid", { length: 100 }).unique(),
-  avatarUrl: varchar("avatar_url", { length: 500 }),
-  createdAt: datetime("created_at").$defaultFn(() => new Date()),
-  updatedAt: datetime("updated_at").$defaultFn(() => new Date()),
+export const users = sqliteTable("users", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  phone: text("phone").notNull().unique(),
+  passwordHash: text("password_hash"),
+  nickname: text("nickname"),
+  wechatOpenid: text("wechat_openid").unique(),
+  avatarUrl: text("avatar_url"),
+  createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(
+    () => new Date(),
+  ),
+  updatedAt: integer("updated_at", { mode: "timestamp" }).$defaultFn(
+    () => new Date(),
+  ),
 });
 
 // ========== 会话 ==========
 
-export const sessions = mysqlTable("sessions", {
-  id: serial("id").primaryKey(),
-  userId: int("user_id")
+export const sessions = sqliteTable("sessions", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  userId: integer("user_id")
     .notNull()
     .references(() => users.id),
-  token: varchar("token", { length: 255 }).notNull().unique(),
-  expiresAt: datetime("expires_at").notNull(),
-  createdAt: datetime("created_at").$defaultFn(() => new Date()),
+  token: text("token").notNull().unique(),
+  expiresAt: integer("expires_at", { mode: "timestamp" }).notNull(),
+  createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(
+    () => new Date(),
+  ),
 });
 
 // ========== 分类 ==========
 
-export const categories = mysqlTable("categories", {
-  id: serial("id").primaryKey(),
-  userId: int("user_id")
+export const categories = sqliteTable("categories", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  userId: integer("user_id")
     .notNull()
     .references(() => users.id),
-  name: varchar("name", { length: 100 }).notNull(),
-  type: varchar("type", { length: 20 }).notNull(),
-  parentId: int("parent_id"),
-  createdAt: datetime("created_at").$defaultFn(() => new Date()),
+  name: text("name").notNull(),
+  type: text("type").notNull(),
+  parentId: integer("parent_id"),
+  createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(
+    () => new Date(),
+  ),
 });
 
 // ========== 资产 ==========
 
-export const assets = mysqlTable("assets", {
-  id: serial("id").primaryKey(),
-  userId: int("user_id")
+export const assets = sqliteTable("assets", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  userId: integer("user_id")
     .notNull()
     .references(() => users.id),
-  name: varchar("name", { length: 200 }).notNull(),
-  type: varchar("type", { length: 20 }).notNull(),
-  categoryId: int("category_id").references(() => categories.id),
-  currentValue: double("current_value").notNull().default(0),
-  monthlyIncome: double("monthly_income").default(0),
-  annualYield: double("annual_yield").default(0),
-  incomeFrequency: varchar("income_frequency", { length: 20 }),
-  incomeDay: int("income_day"),
-  isActive: boolean("is_active").notNull().default(true),
+  name: text("name").notNull(),
+  type: text("type").notNull(),
+  categoryId: integer("category_id").references(() => categories.id),
+  currentValue: real("current_value").notNull().default(0),
+  monthlyIncome: real("monthly_income").default(0),
+  annualYield: real("annual_yield").default(0),
+  incomeFrequency: text("income_frequency"),
+  incomeDay: integer("income_day"),
+  isActive: integer("is_active", { mode: "boolean" }).notNull().default(true),
   note: text("note"),
-  createdAt: datetime("created_at").$defaultFn(() => new Date()),
-  updatedAt: datetime("updated_at").$defaultFn(() => new Date()),
+  createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(
+    () => new Date(),
+  ),
+  updatedAt: integer("updated_at", { mode: "timestamp" }).$defaultFn(
+    () => new Date(),
+  ),
 });
 
 // ========== 负债 ==========
 
-export const liabilities = mysqlTable("liabilities", {
-  id: serial("id").primaryKey(),
-  userId: int("user_id")
+export const liabilities = sqliteTable("liabilities", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  userId: integer("user_id")
     .notNull()
     .references(() => users.id),
-  name: varchar("name", { length: 200 }).notNull(),
-  type: varchar("type", { length: 20 }).notNull(),
-  categoryId: int("category_id").references(() => categories.id),
-  totalPrincipal: double("total_principal").notNull(),
-  remainingPrincipal: double("remaining_principal").notNull(),
-  annualRate: double("annual_rate").notNull().default(0),
-  repaymentMethod: varchar("repayment_method", { length: 30 })
+  name: text("name").notNull(),
+  type: text("type").notNull(),
+  categoryId: integer("category_id").references(() => categories.id),
+  totalPrincipal: real("total_principal").notNull(),
+  remainingPrincipal: real("remaining_principal").notNull(),
+  annualRate: real("annual_rate").notNull().default(0),
+  repaymentMethod: text("repayment_method")
     .notNull()
     .default("equal_installment"),
-  monthlyPayment: double("monthly_payment").notNull().default(0),
-  paymentDay: int("payment_day"),
-  startDate: datetime("start_date"),
-  endDate: datetime("end_date"),
-  isActive: boolean("is_active").notNull().default(true),
+  monthlyPayment: real("monthly_payment").notNull().default(0),
+  paymentDay: integer("payment_day"),
+  startDate: integer("start_date", { mode: "timestamp" }),
+  endDate: integer("end_date", { mode: "timestamp" }),
+  isActive: integer("is_active", { mode: "boolean" }).notNull().default(true),
   note: text("note"),
-  createdAt: datetime("created_at").$defaultFn(() => new Date()),
-  updatedAt: datetime("updated_at").$defaultFn(() => new Date()),
+  createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(
+    () => new Date(),
+  ),
+  updatedAt: integer("updated_at", { mode: "timestamp" }).$defaultFn(
+    () => new Date(),
+  ),
 });
 
 // ========== 账目变动记录 ==========
 
-export const transactions = mysqlTable("transactions", {
-  id: serial("id").primaryKey(),
-  userId: int("user_id")
+export const transactions = sqliteTable("transactions", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  userId: integer("user_id")
     .notNull()
     .references(() => users.id),
-  type: varchar("type", { length: 30 }).notNull(),
-  categoryId: int("category_id").references(() => categories.id),
-  assetId: int("asset_id").references(() => assets.id),
-  liabilityId: int("liability_id").references(() => liabilities.id),
-  amount: double("amount").notNull(),
-  principalPart: double("principal_part").default(0),
-  interestPart: double("interest_part").default(0),
-  description: varchar("description", { length: 500 }).notNull(),
-  transactionDate: datetime("transaction_date").notNull(),
-  isAutoGenerated: boolean("is_auto_generated").notNull().default(false),
-  reconciliationId: int("reconciliation_id").references(
+  type: text("type").notNull(),
+  categoryId: integer("category_id").references(() => categories.id),
+  assetId: integer("asset_id").references(() => assets.id),
+  liabilityId: integer("liability_id").references(() => liabilities.id),
+  amount: real("amount").notNull(),
+  principalPart: real("principal_part").default(0),
+  interestPart: real("interest_part").default(0),
+  description: text("description").notNull(),
+  transactionDate: integer("transaction_date", { mode: "timestamp" }).notNull(),
+  isAutoGenerated: integer("is_auto_generated", { mode: "boolean" })
+    .notNull()
+    .default(false),
+  reconciliationId: integer("reconciliation_id").references(
     () => reconciliations.id,
   ),
   note: text("note"),
-  createdAt: datetime("created_at").$defaultFn(() => new Date()),
+  createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(
+    () => new Date(),
+  ),
 });
 
 // ========== 对账记录 ==========
 
-export const reconciliations = mysqlTable("reconciliations", {
-  id: serial("id").primaryKey(),
-  userId: int("user_id")
+export const reconciliations = sqliteTable("reconciliations", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  userId: integer("user_id")
     .notNull()
     .references(() => users.id),
-  assetId: int("asset_id").references(() => assets.id),
-  liabilityId: int("liability_id").references(() => liabilities.id),
-  expectedBalance: double("expected_balance").notNull(),
-  actualBalance: double("actual_balance").notNull(),
-  difference: double("difference").notNull(),
-  reconciliationDate: datetime("reconciliation_date").notNull(),
-  transactionId: int("transaction_id"),
+  assetId: integer("asset_id").references(() => assets.id),
+  liabilityId: integer("liability_id").references(() => liabilities.id),
+  expectedBalance: real("expected_balance").notNull(),
+  actualBalance: real("actual_balance").notNull(),
+  difference: real("difference").notNull(),
+  reconciliationDate: integer("reconciliation_date", {
+    mode: "timestamp",
+  }).notNull(),
+  transactionId: integer("transaction_id"),
   note: text("note"),
-  createdAt: datetime("created_at").$defaultFn(() => new Date()),
+  createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(
+    () => new Date(),
+  ),
 });
 
 // ========== AI 聊天会话 ==========
 
-export const chatSessions = mysqlTable("chat_sessions", {
-  id: serial("id").primaryKey(),
-  userId: int("user_id")
+export const chatSessions = sqliteTable("chat_sessions", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  userId: integer("user_id")
     .notNull()
     .references(() => users.id),
-  title: varchar("title", { length: 100 }).notNull(),
-  createdAt: datetime("created_at").$defaultFn(() => new Date()),
-  updatedAt: datetime("updated_at").$defaultFn(() => new Date()),
+  title: text("title").notNull(),
+  createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(
+    () => new Date(),
+  ),
+  updatedAt: integer("updated_at", { mode: "timestamp" }).$defaultFn(
+    () => new Date(),
+  ),
 });
 
 // ========== AI 聊天消息 ==========
 
-export const chatMessages = mysqlTable("chat_messages", {
-  id: serial("id").primaryKey(),
-  sessionId: int("session_id")
+export const chatMessages = sqliteTable("chat_messages", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  sessionId: integer("session_id")
     .notNull()
     .references(() => chatSessions.id, { onDelete: "cascade" }),
-  role: varchar("role", { length: 20 }).notNull(),
+  role: text("role").notNull(),
   content: text("content").notNull(),
-  createdAt: datetime("created_at").$defaultFn(() => new Date()),
+  createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(
+    () => new Date(),
+  ),
 });
 
 // ========== 月度快照 ==========
 
-export const monthlySnapshots = mysqlTable("monthly_snapshots", {
-  id: serial("id").primaryKey(),
-  userId: int("user_id")
+export const monthlySnapshots = sqliteTable("monthly_snapshots", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  userId: integer("user_id")
     .notNull()
     .references(() => users.id),
-  month: varchar("month", { length: 7 }).notNull(),
-  totalAssets: double("total_assets").notNull().default(0),
-  totalLiabilities: double("total_liabilities").notNull().default(0),
-  netWorth: double("net_worth").notNull().default(0),
-  monthlyCashFlow: double("monthly_cash_flow").notNull().default(0),
+  month: text("month").notNull(),
+  totalAssets: real("total_assets").notNull().default(0),
+  totalLiabilities: real("total_liabilities").notNull().default(0),
+  netWorth: real("net_worth").notNull().default(0),
+  monthlyCashFlow: real("monthly_cash_flow").notNull().default(0),
   assetBreakdown: text("asset_breakdown"),
   liabilityBreakdown: text("liability_breakdown"),
-  createdAt: datetime("created_at").$defaultFn(() => new Date()),
+  createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(
+    () => new Date(),
+  ),
 });

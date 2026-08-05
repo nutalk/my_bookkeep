@@ -129,7 +129,7 @@ export default function AssetsPage() {
     const res = await fetch(
       `/api/transactions?assetId=${assetId}&limit=${txLimit}&offset=${offset}`,
     );
-    const result = await res.json();
+    const result = (await res.json()) as { data: Transaction[]; total: number };
     setDetails((d) => ({ ...d, [assetId]: result.data }));
     setTxTotals((t) => ({ ...t, [assetId]: result.total }));
     setTxPages((p) => ({ ...p, [assetId]: page }));

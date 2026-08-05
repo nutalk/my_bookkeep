@@ -44,7 +44,7 @@ export default function TransactionsPage() {
       .then((r) => r.json())
       .then((result) => {
         if (mounted) {
-          setTransactions(result.data ?? result);
+          setTransactions((result as { data?: Transaction[] }).data ?? (result as Transaction[]));
           setLoading(false);
         }
       });

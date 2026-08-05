@@ -71,7 +71,8 @@ export default function Home() {
       fetch("/api/assets").then((r) => r.json()),
       fetch("/api/liabilities").then((r) => r.json()),
     ]).then(([me, a, l]) => {
-      if (me.user) setUser(me.user);
+      const user = (me as { user: { nickname: string | null; phone: string } }).user;
+      if (user) setUser(user);
       setAssets(Array.isArray(a) ? a : []);
       setLiabilities(Array.isArray(l) ? l : []);
       setLoading(false);

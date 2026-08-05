@@ -33,7 +33,8 @@ export function Sidebar() {
     fetch("/api/auth/me")
       .then((res) => res.json())
       .then((data) => {
-        if (data.user) setUser(data.user);
+        const user = (data as { user: UserInfo }).user;
+        if (user) setUser(user);
       })
       .catch(() => {});
   }, []);

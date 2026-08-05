@@ -623,7 +623,7 @@ function HistoryTab() {
       .then((r) => r.json())
       .then((d) => {
         if (mounted) {
-          setData(d);
+          setData(d as HistoryData);
           setLoading(false);
         }
       });
@@ -822,7 +822,7 @@ function PredictionTab() {
       .then((r) => r.json())
       .then((data) => {
         if (mounted) {
-          setPrediction(data);
+          setPrediction(data as PredictionData);
           setLoading(false);
           setSelectedMonth(null);
         }

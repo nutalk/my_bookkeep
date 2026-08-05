@@ -95,7 +95,7 @@ export function AIChatPanel() {
     try {
       const res = await fetch("/api/ai-chat/sessions", { method: "POST" });
       if (res.ok) {
-        const session = await res.json();
+        const session = (await res.json()) as { id: number };
         setSessionId(session.id);
       }
     } catch {}
@@ -105,7 +105,7 @@ export function AIChatPanel() {
     try {
       const res = await fetch(`/api/ai-chat/sessions/${sid}`);
       if (res.ok) {
-        const data = await res.json();
+        const data = (await res.json()) as { messages: ChatMessage[] };
         setMessages(data.messages || []);
       }
     } catch {}
@@ -125,7 +125,7 @@ export function AIChatPanel() {
       try {
         const res = await fetch("/api/ai-chat/sessions", { method: "POST" });
         if (res.ok) {
-          const s = await res.json();
+          const s = (await res.json()) as { id: number };
           setSessionId(s.id);
           sid = s.id;
         } else return;
@@ -151,7 +151,7 @@ export function AIChatPanel() {
       });
 
       if (!res.ok) {
-        const err = await res.json().catch(() => ({ error: "请求失败" }));
+        const err = (await res.json().catch(() => ({ error: "请求失败" }))) as { error: string };
         setStreamingContent(`错误: ${err.error || res.status}`);
         setStreaming(false);
         return;

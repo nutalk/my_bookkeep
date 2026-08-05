@@ -19,16 +19,19 @@
 | `bun lint` | Check code quality |
 | `bun typecheck` | Type checking |
 | `bun db:generate` | Generate Drizzle migrations from schema changes |
-| `bun db:migrate` | Run Drizzle Kit migrations (also used in docker-entrypoint.sh) |
+| `bun db:migrate` | Apply migrations to local D1 (wrangler) |
+| `bun db:migrate:remote` | Apply migrations to remote D1 |
+| `bun run preview` | OpenNext local preview (Workers runtime) |
+| `bun run deploy` | Build and deploy to Cloudflare Workers |
 
 ## Architecture
 
 - **Framework**: Next.js 16 with App Router
-- **Database**: MySQL 8.0 with Drizzle ORM (`drizzle-orm/mysql2`)
+- **Database**: Cloudflare D1 (SQLite) with Drizzle ORM (`drizzle-orm/d1`)
 - **Auth**: Session-based (httpOnly cookie `session_token`)
 - **Data isolation**: All user-scoped tables have `user_id` FK; API routes filter by `user_id`
 - **Styling**: Tailwind CSS v4 via `@tailwindcss/postcss` plugin (not v3 config file approach)
-- **Runtime**: Bun for package management and build; standalone Next.js output for Docker
+- **Runtime**: Bun for package management and build; deployed on Cloudflare Workers via `@opennextjs/cloudflare`
 - **Path alias**: `@/*` maps to `./src/*` (configured in tsconfig.json)
 
 ### Layout Structure
@@ -57,13 +60,12 @@ Defined in `src/db/schema.ts`:
 | `chat_messages` | AI chat messages | CASCADE delete with session, role: user/assistant |
 | `monthly_snapshots` | Monthly financial snapshots | Stores totalAssets, totalLiabilities, netWorth, JSON breakdowns |
 
-### Dual Migration System
+### Migration System
 
-This project has two migration mechanisms:
-1. **`src/db/migrate.ts`** — manual `CREATE TABLE IF NOT EXISTS` statements (used by docker-entrypoint.sh for fresh setups)
-2. **Drizzle Kit** (`src/db/migrations/`) — generated migrations from schema changes
+- **`src/db/migrations/`** — Drizzle Kit generated SQLite migrations (applied via `wrangler d1 migrations apply`)
+- D1 binding named `DB` configured in `wrangler.jsonc`; `migrations_dir` points to `src/db/migrations`
 
-When adding schema changes: update `src/db/schema.ts`, run `bun db:generate`, AND update `src/db/migrate.ts` manually.
+When adding schema changes: update `src/db/schema.ts`, run `bun db:generate`, then `bun db:migrate` (local) or `bun db:migrate:remote` (production).
 
 ### API Route Structure
 
@@ -104,13 +106,14 @@ The AI chat (`src/app/api/ai-chat/route.ts`) proxies to user-configured OpenAI-c
 
 ## Key Patterns
 
-### MySQL Drizzle Patterns
-- No `.returning()` — use insert → get `insertId` → select pattern
-- Use `mysqlTable` instead of `sqliteTable`
-- Use `serial` for auto-increment primary keys
-- Use `double` instead of `real` for floating point
-- Use `datetime` instead of `integer` for timestamps
-- Use `boolean` instead of `integer { mode: "boolean" }`
+### SQLite Drizzle Patterns
+- No `.returning()` — use insert → `getInsertId(result)` (from `@/db`) → select pattern
+- Use `sqliteTable` (from `drizzle-orm/sqlite-core`)
+- Use `integer("id").primaryKey({ autoIncrement: true })`
+- Use `real` for floating point
+- Use `integer(name, { mode: "timestamp" })` for datetimes (Date objects work)
+- Use `integer(name, { mode: "boolean" })` for booleans
+- `db.insert().values()` returns `{ meta: { last_row_id } }` (not an array); use `getInsertId()` helper
 
 ### Component Conventions
 - All components in `src/components/` (8 total)
@@ -141,25 +144,16 @@ Located in `miniprogram/` directory. Standard WeChat Mini Program structure:
 - Communicates with backend API via `wx.request` using shared `utils/api.js` helper
 - `app.js` auto-detects environment to set `baseUrl` (localhost:3000 for dev, production domain for release)
 
-## Docker Deployment
+## Cloudflare Deployment
 
-- `next.config.ts` sets `output: "standalone"` for minimal Docker image
-- Multi-stage Dockerfile using `oven/bun:1` base image
-- `docker-entrypoint.sh`: waits for MySQL, runs `bun db:migrate`, starts `bun server.js`
-- GitHub Actions builds for `linux/amd64` + `linux/arm64`
-- Docker image: `nutalk/my-bookkeep`
-- Push to `main` → `latest` tag; `v*` tag → version tag; PR → build only
+- Deploy via `@opennextjs/cloudflare` (OpenNext adapter for Workers)
+- `wrangler.jsonc` configures the Worker, D1 binding (`DB`), and assets
+- `next.config.ts` calls `initOpenNextCloudflareForDev()` for local dev bindings
+- GitHub Actions (`cloudflare-deploy.yml`): typecheck + lint → apply D1 migrations → deploy
+- Requires GitHub Secrets: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`
+- Worker name: `my-bookkeep`; D1 database: `bookkeep-db`
 
 ## Environment Variables
-
-Required:
-```bash
-MYSQL_HOST=localhost
-MYSQL_PORT=3306
-MYSQL_USER=bookkeep
-MYSQL_PASSWORD=your_password_here
-MYSQL_DATABASE=bookkeep
-```
 
 Optional (for WeChat login):
 ```bash
@@ -168,6 +162,8 @@ WECHAT_APP_SECRET=
 NEXT_PUBLIC_WECHAT_APP_ID=
 ```
 
+Local dev bindings/vars go in `.dev.vars` (wrangler injects them). Production vars configured in Cloudflare dashboard or `wrangler.jsonc` `vars`.
+
 ## Outdated Files to Ignore
 
-- `.kilocode/recipes/add-database.md` — references SQLite, this project uses MySQL
+- `.kilocode/recipes/add-database.md` — references SQLite with old MySQL-era API patterns, outdated

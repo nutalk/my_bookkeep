@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import DatePicker from "./DatePicker";
 
 export function AssetForm({ onSuccess }: { onSuccess?: () => void }) {
   const router = useRouter();
@@ -418,11 +419,11 @@ export function LiabilityForm({ onSuccess }: { onSuccess?: () => void }) {
       <div className="grid grid-cols-2 gap-4">
         <div>
           <label className="block text-sm text-neutral-400 mb-1">开始日期</label>
-          <input
-            type="date"
+          <DatePicker
             value={form.startDate}
-            onChange={(e) => handleStartDateChange(e.target.value)}
-            className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500 [color-scheme:dark]"
+            onChange={handleStartDateChange}
+            placeholder="选择开始日期"
+            className="py-2"
           />
         </div>
         <div>
@@ -440,17 +441,15 @@ export function LiabilityForm({ onSuccess }: { onSuccess?: () => void }) {
               {autoEndDate ? "自动" : "手动"}
             </button>
           </div>
-          <input
-            type="date"
+          <DatePicker
             value={form.endDate}
-            onChange={(e) => {
+            onChange={(v) => {
               setAutoEndDate(false);
-              setForm({ ...form, endDate: e.target.value });
+              setForm({ ...form, endDate: v });
             }}
-            readOnly={autoEndDate}
-            className={`w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500 [color-scheme:dark] ${
-              autoEndDate ? "opacity-60 cursor-not-allowed" : ""
-            }`}
+            disabled={autoEndDate}
+            placeholder="选择结束日期"
+            className={`py-2 ${autoEndDate ? "cursor-not-allowed" : ""}`}
           />
           {autoEndDate && form.startDate && (
             <p className="text-xs text-neutral-500 mt-1">
@@ -702,12 +701,11 @@ export function TransactionForm({ onSuccess }: { onSuccess?: () => void }) {
 
           <div>
             <label className="block text-sm text-neutral-400 mb-1">日期</label>
-            <input
-              type="date"
+            <DatePicker
               required
               value={form.transactionDate}
-              onChange={(e) => setForm({ ...form, transactionDate: e.target.value })}
-              className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
+              onChange={(v) => setForm({ ...form, transactionDate: v })}
+              className="py-2"
             />
           </div>
 

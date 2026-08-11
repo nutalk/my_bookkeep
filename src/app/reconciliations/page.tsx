@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import DatePicker from "@/components/DatePicker";
 import { formatMoney, formatDate, getAssetTypeLabel, getLiabilityTypeLabel } from "@/lib/utils";
 
 interface Reconciliation {
@@ -338,14 +339,13 @@ export default function ReconciliationsPage() {
                     <label className="block text-sm text-neutral-400 mb-1">
                       对账日期
                     </label>
-                    <input
-                      type="date"
+                    <DatePicker
                       required
                       value={form.reconciliationDate}
-                      onChange={(e) =>
-                        setForm({ ...form, reconciliationDate: e.target.value })
+                      onChange={(v) =>
+                        setForm({ ...form, reconciliationDate: v })
                       }
-                      className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2.5 text-white text-sm focus:outline-none focus:border-blue-500 [color-scheme:dark]"
+                      className="py-2.5"
                     />
                   </div>
                 </div>

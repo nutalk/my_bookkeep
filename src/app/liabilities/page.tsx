@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { LiabilityForm } from "@/components/Forms";
 import { BalanceChart } from "@/components/BalanceChart";
+import DatePicker from "@/components/DatePicker";
 import {
   formatMoney,
   formatDate,
@@ -689,11 +690,13 @@ export default function LiabilitiesPage() {
                         {editForm.repaymentMethod !== "lump_sum" && (
                           <div>
                             <label className="block text-sm text-neutral-400 mb-1">起始日期</label>
-                            <input
-                              type="date"
+                            <DatePicker
                               value={editForm.startDate}
-                              onChange={(e) => setEditForm({ ...editForm, startDate: e.target.value })}
-                              className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
+                              onChange={(v) =>
+                                setEditForm({ ...editForm, startDate: v })
+                              }
+                              placeholder="选择起始日期"
+                              className="py-2"
                             />
                           </div>
                         )}

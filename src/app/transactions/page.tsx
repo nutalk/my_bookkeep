@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { TransactionForm } from "@/components/Forms";
+import DatePicker from "@/components/DatePicker";
 import {
   formatMoney,
   formatDate,
@@ -303,12 +304,13 @@ export default function TransactionsPage() {
                 </div>
                 <div>
                   <label className="block text-sm text-neutral-400 mb-1">日期</label>
-                  <input
-                    type="date"
+                  <DatePicker
                     required
                     value={editForm.transactionDate}
-                    onChange={(e) => setEditForm({ ...editForm, transactionDate: e.target.value })}
-                    className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500 [color-scheme:dark]"
+                    onChange={(v) =>
+                      setEditForm({ ...editForm, transactionDate: v })
+                    }
+                    className="py-2"
                   />
                 </div>
               </div>

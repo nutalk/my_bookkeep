@@ -23,7 +23,7 @@ const ChatContext = createContext<ChatContextValue>({
 });
 
 export function ChatProvider({ children }: { children: ReactNode }) {
-  const [panelOpen, setPanelOpen] = useState(true);
+  const [panelOpen, setPanelOpen] = useState(false);
 
   const togglePanel = useCallback(() => setPanelOpen((v) => !v), []);
   const openPanel = useCallback(() => setPanelOpen(true), []);

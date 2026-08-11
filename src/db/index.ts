@@ -1,6 +1,7 @@
 import { drizzle } from "drizzle-orm/mysql2";
 import mysql from "mysql2/promise";
 import * as schema from "./schema";
+import { mysqlSsl } from "./config";
 
 const connection = mysql.createPool({
   host: process.env.MYSQL_HOST || "localhost",
@@ -10,7 +11,7 @@ const connection = mysql.createPool({
   database: process.env.MYSQL_DATABASE || "family_balance_sheet",
   waitForConnections: true,
   connectionLimit: 10,
-  ssl: { rejectUnauthorized: false },
+  ssl: mysqlSsl(),
 });
 
 export const db = drizzle(connection, { schema, mode: "default" });

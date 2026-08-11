@@ -1,6 +1,7 @@
 import { db } from "./index";
 import * as schema from "./schema";
 import mysql from "mysql2/promise";
+import { mysqlSsl } from "./config";
 
 async function ensureTables() {
   const tables = [
@@ -175,6 +176,7 @@ async function ensureTables() {
     user: process.env.MYSQL_USER || "app",
     password: process.env.MYSQL_PASSWORD || "",
     database: process.env.MYSQL_DATABASE || "family_balance_sheet",
+    ssl: mysqlSsl(),
   });
 
   for (const table of tables) {

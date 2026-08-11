@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import mysql from "mysql2/promise";
+import { mysqlSsl } from "@/db/config";
 
 export async function GET() {
   const checks: Record<string, string> = {};
@@ -19,6 +20,7 @@ export async function GET() {
       user: process.env.MYSQL_USER || "root",
       password: process.env.MYSQL_PASSWORD || "",
       database: process.env.MYSQL_DATABASE || "family_balance_sheet",
+      ssl: mysqlSsl(),
     });
 
     // Check if tables exist

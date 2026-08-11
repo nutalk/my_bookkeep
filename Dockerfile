@@ -9,7 +9,7 @@ RUN bun install --frozen-lockfile --production=false
 # Build
 FROM deps AS builder
 COPY . .
-RUN bun run build
+RUN NEXT_OUTPUT=standalone bun run build
 
 # Production
 FROM base AS runner

@@ -129,7 +129,7 @@ export async function POST(request: Request) {
       return NextResponse.json(
         {
           error:
-            "当前用户已有数据，请先到「数据管理」页面清空数据后再导入。",
+            "当前用户已有数据，请先到「账号设置 → 数据管理」页面清空数据后再导入。",
         },
         { status: 409 },
       );

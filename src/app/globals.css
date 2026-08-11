@@ -1,1 +1,31 @@
 @import "tailwindcss";
+
+/* 主题：通过覆盖 Tailwind v4 颜色变量实现整体换肤（工具类引用 var(--color-*)）。
+   dark 为默认（不设 data-theme），light/gray 由 html[data-theme] 触发。
+   注意：不改 --color-black，保持弹窗遮罩等场景为深色。 */
+
+[data-theme="light"] {
+  --color-neutral-950: #f8fafc;
+  --color-neutral-900: #ffffff;
+  --color-neutral-800: #e5e7eb;
+  --color-neutral-700: #d1d5db;
+  --color-neutral-600: #9ca3af;
+  --color-neutral-500: #6b7280;
+  --color-neutral-400: #4b5563;
+  --color-neutral-300: #374151;
+  --color-neutral-200: #1f2937;
+  --color-white: #111827;
+}
+
+[data-theme="gray"] {
+  --color-neutral-950: #17171a;
+  --color-neutral-900: #232328;
+  --color-neutral-800: #2e2e34;
+  --color-neutral-700: #3a3a41;
+  --color-neutral-600: #6b6b74;
+  --color-neutral-500: #8b8b94;
+  --color-neutral-400: #9f9fa9;
+  --color-neutral-300: #b8b8c1;
+  --color-neutral-200: #d0d0d8;
+  --color-white: #ececee;
+}

@@ -1,35 +1,25 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
+import Link from "next/link";
 import { MarkdownContent } from "@/components/MarkdownContent";
 import { useChatPanel } from "@/lib/chat-context";
+import {
+  AIConfig,
+  DEFAULT_BASE_URL,
+  DEFAULT_MODEL,
+  loadConfig,
+} from "@/lib/ai-config";
 
 interface ChatMessage {
   role: "user" | "assistant";
   content: string;
 }
 
-interface AIConfig {
-  baseUrl: string;
-  apiKey: string;
-  model: string;
-}
-
-const DEFAULT_BASE_URL = "https://api.openai.com/v1";
-const DEFAULT_MODEL = "gpt-4o";
-const CONFIG_KEY = "ai_chat_config";
 const WIDTH_KEY = "ai_chat_panel_width";
 const MIN_WIDTH = 200;
 const MAX_WIDTH = 800;
 const DEFAULT_WIDTH = 448;
-
-function loadConfig(): AIConfig {
-  try {
-    const raw = localStorage.getItem(CONFIG_KEY);
-    if (raw) return JSON.parse(raw);
-  } catch {}
-  return { baseUrl: DEFAULT_BASE_URL, apiKey: "", model: DEFAULT_MODEL };
-}
 
 function loadWidth(): number {
   try {
@@ -46,7 +36,7 @@ export function AIChatPanel() {
     apiKey: "",
     model: DEFAULT_MODEL,
   });
-  const [showConfig, setShowConfig] = useState(true);
+  const [showApiHint, setShowApiHint] = useState(false);
   const [sessionId, setSessionId] = useState<number | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
@@ -60,13 +50,18 @@ export function AIChatPanel() {
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const sessionCreated = useRef(false);
 
-  // Load config and width from localStorage after mount (avoids hydration mismatch)
+  // Load panel width from localStorage after mount (avoids hydration mismatch)
   useEffect(() => {
-    const saved = loadConfig();
-    setConfig(saved);
-    if (saved.apiKey) setShowConfig(false);
     setPanelWidth(loadWidth());
   }, []);
+
+  // 打开面板时重读配置，使「账号设置 → AI 设置」的修改即时生效
+  useEffect(() => {
+    if (panelOpen) {
+      setConfig(loadConfig());
+      setShowApiHint(false);
+    }
+  }, [panelOpen]);
 
   // Auto-create a session on first mount
   useEffect(() => {
@@ -115,7 +110,7 @@ export function AIChatPanel() {
     const text = input.trim();
     if (!text || streaming) return;
     if (!config.apiKey) {
-      setShowConfig(true);
+      setShowApiHint(true);
       return;
     }
 
@@ -252,26 +247,6 @@ export function AIChatPanel() {
         </span>
         <div className="flex items-center gap-1">
           <button
-            onClick={() => setShowConfig((v) => !v)}
-            className={`transition-colors p-0.5 ${
-              showConfig ? "text-blue-400" : "text-neutral-500 hover:text-white"
-            }`}
-            title="配置"
-          >
-            <svg
-              className="w-3.5 h-3.5"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <circle cx="12" cy="12" r="3" />
-              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51z" />
-            </svg>
-          </button>
-          <button
             onClick={closePanel}
             className="text-neutral-500 hover:text-white transition-colors p-0.5"
             title="关闭"
@@ -292,55 +267,6 @@ export function AIChatPanel() {
         </div>
       </div>
 
-      {/* Config collapsible */}
-      {showConfig && (
-        <div className="shrink-0 px-3 py-2 border-b border-neutral-800 space-y-2">
-          <input
-            type="password"
-            placeholder="API Key"
-            value={config.apiKey}
-            onChange={(e) => {
-              const c = { ...config, apiKey: e.target.value };
-              setConfig(c);
-              localStorage.setItem(CONFIG_KEY, JSON.stringify(c));
-            }}
-            className="w-full bg-neutral-800 border border-neutral-700 rounded px-2 py-1.5 text-xs text-white placeholder-neutral-500 focus:outline-none focus:border-blue-500 font-mono"
-          />
-          <div className="flex gap-1">
-            <input
-              type="text"
-              placeholder={DEFAULT_BASE_URL}
-              value={config.baseUrl}
-              onChange={(e) => {
-                const c = { ...config, baseUrl: e.target.value };
-                setConfig(c);
-                localStorage.setItem(CONFIG_KEY, JSON.stringify(c));
-              }}
-              className="flex-1 bg-neutral-800 border border-neutral-700 rounded px-2 py-1.5 text-xs text-white placeholder-neutral-500 focus:outline-none focus:border-blue-500"
-            />
-            <input
-              type="text"
-              placeholder={DEFAULT_MODEL}
-              value={config.model}
-              onChange={(e) => {
-                const c = { ...config, model: e.target.value };
-                setConfig(c);
-                localStorage.setItem(CONFIG_KEY, JSON.stringify(c));
-              }}
-              className="w-16 bg-neutral-800 border border-neutral-700 rounded px-2 py-1.5 text-xs text-white placeholder-neutral-500 focus:outline-none focus:border-blue-500"
-            />
-          </div>
-          {config.apiKey && (
-            <button
-              onClick={() => setShowConfig(false)}
-              className="w-full text-xs text-blue-400 hover:text-blue-300 transition-colors"
-            >
-              开始对话
-            </button>
-          )}
-        </div>
-      )}
-
       {/* Messages */}
       <div className="flex-1 overflow-y-auto px-2 py-2 space-y-2">
         {messages.length === 0 && !streaming && (
@@ -349,12 +275,12 @@ export function AIChatPanel() {
             <p className="mb-1">AI 财务助手</p>
             <p className="text-neutral-600">问我关于财务状况的任何问题</p>
             {!config.apiKey && (
-              <button
-                onClick={() => setShowConfig(true)}
+              <Link
+                href="/settings?tab=ai"
                 className="mt-3 bg-blue-600 hover:bg-blue-700 text-white rounded px-3 py-1.5 text-xs transition-colors"
               >
-                配置 AI 接口
-              </button>
+                去配置 AI 接口
+              </Link>
             )}
           </div>
         )}
@@ -413,6 +339,17 @@ export function AIChatPanel() {
 
       {/* Input */}
       <div className="shrink-0 px-3 py-2 border-t border-neutral-800">
+        {showApiHint && !config.apiKey && (
+          <div className="mb-2 px-2 py-1.5 rounded bg-neutral-800 text-xs text-neutral-400 flex items-center justify-between gap-2">
+            <span>请先配置 API Key</span>
+            <Link
+              href="/settings?tab=ai"
+              className="text-blue-400 hover:text-blue-300 shrink-0"
+            >
+              去设置
+            </Link>
+          </div>
+        )}
         <div className="flex gap-1.5">
           <textarea
             ref={inputRef}

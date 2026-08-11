@@ -12,7 +12,7 @@ const navItems = [
   { href: "/transactions", label: "记账", icon: "📝" },
   { href: "/reconciliations", label: "对账", icon: "✅" },
   { href: "/statistics", label: "统计", icon: "📈" },
-  { href: "/import", label: "数据管理", icon: "🗄️" },
+  { href: "/settings", label: "账号设置", icon: "⚙️" },
 ];
 
 interface UserInfo {

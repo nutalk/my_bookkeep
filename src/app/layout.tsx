@@ -30,6 +30,11 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var t=localStorage.getItem("theme");if(t==="light"||t==="gray")document.documentElement.setAttribute("data-theme",t);}catch(e){}})();`,
+          }}
+        />
         <ChatProvider>
           <div className="flex min-h-screen bg-neutral-950">
             <Sidebar />

@@ -276,7 +276,7 @@ export function AIChatPanel() {
             <p className="text-neutral-600">问我关于财务状况的任何问题</p>
             {!config.apiKey && (
               <Link
-                href="/settings?tab=ai"
+                href="/settings/ai"
                 className="mt-3 bg-blue-600 hover:bg-blue-700 text-white rounded px-3 py-1.5 text-xs transition-colors"
               >
                 去配置 AI 接口
@@ -343,7 +343,7 @@ export function AIChatPanel() {
           <div className="mb-2 px-2 py-1.5 rounded bg-neutral-800 text-xs text-neutral-400 flex items-center justify-between gap-2">
             <span>请先配置 API Key</span>
             <Link
-              href="/settings?tab=ai"
+              href="/settings/ai"
               className="text-blue-400 hover:text-blue-300 shrink-0"
             >
               去设置

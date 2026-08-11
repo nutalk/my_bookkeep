@@ -5,14 +5,36 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useChatPanel } from "@/lib/chat-context";
 
-const navItems = [
+interface NavChild {
+  href: string;
+  label: string;
+  icon: string;
+}
+
+interface NavItem {
+  href: string;
+  label: string;
+  icon: string;
+  children?: NavChild[];
+}
+
+const navItems: NavItem[] = [
   { href: "/", label: "总览", icon: "📊" },
   { href: "/assets", label: "资产", icon: "💰" },
   { href: "/liabilities", label: "负债", icon: "💳" },
   { href: "/transactions", label: "记账", icon: "📝" },
   { href: "/reconciliations", label: "对账", icon: "✅" },
   { href: "/statistics", label: "统计", icon: "📈" },
-  { href: "/settings", label: "账号设置", icon: "⚙️" },
+  {
+    href: "/settings",
+    label: "账号设置",
+    icon: "⚙️",
+    children: [
+      { href: "/settings/data", label: "数据管理", icon: "🗄️" },
+      { href: "/settings/ai", label: "AI 设置", icon: "🔑" },
+      { href: "/settings/theme", label: "颜色主题", icon: "🎨" },
+    ],
+  },
 ];
 
 interface UserInfo {
@@ -28,6 +50,7 @@ export function Sidebar() {
   const { panelOpen, togglePanel } = useChatPanel();
   const [user, setUser] = useState<UserInfo | null>(null);
   const [loggingOut, setLoggingOut] = useState(false);
+  const [settingsExpanded, setSettingsExpanded] = useState(false);
 
   useEffect(() => {
     fetch("/api/auth/me")
@@ -37,6 +60,11 @@ export function Sidebar() {
       })
       .catch(() => {});
   }, []);
+
+  // 进入设置相关页面时自动展开子菜单，离开时收起
+  useEffect(() => {
+    setSettingsExpanded(pathname.startsWith("/settings"));
+  }, [pathname]);
 
   const handleLogout = async () => {
     setLoggingOut(true);
@@ -56,11 +84,63 @@ export function Sidebar() {
         <h1 className="text-lg font-bold text-white">家庭资产负债表</h1>
         <p className="text-xs text-neutral-400 mt-1">Family Balance Sheet</p>
       </div>
-      <nav className="flex-1 p-2">
+      <nav className="flex-1 p-2 space-y-0.5">
         {navItems.map((item) => {
           const isActive =
             pathname === item.href ||
             (item.href !== "/" && pathname.startsWith(item.href));
+
+          if (item.children) {
+            return (
+              <div key={item.href}>
+                <button
+                  onClick={() => {
+                    setSettingsExpanded((v) => !v);
+                    if (!pathname.startsWith("/settings")) {
+                      router.push("/settings/data");
+                    }
+                  }}
+                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors ${
+                    isActive
+                      ? "bg-blue-600 text-white"
+                      : "text-neutral-400 hover:bg-neutral-800 hover:text-white"
+                  }`}
+                >
+                  <span className="text-base">{item.icon}</span>
+                  <span className="flex-1 text-left">{item.label}</span>
+                  <span
+                    className={`text-[10px] transition-transform ${
+                      settingsExpanded ? "rotate-90" : ""
+                    }`}
+                  >
+                    ▶
+                  </span>
+                </button>
+                {settingsExpanded && (
+                  <div className="mt-0.5 space-y-0.5 pl-4">
+                    {item.children.map((child) => {
+                      const childActive = pathname === child.href;
+                      return (
+                        <Link
+                          key={child.href}
+                          href={child.href}
+                          className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
+                            childActive
+                              ? "bg-blue-600/80 text-white"
+                              : "text-neutral-400 hover:bg-neutral-800 hover:text-white"
+                          }`}
+                        >
+                          <span className="text-xs">{child.icon}</span>
+                          <span>{child.label}</span>
+                        </Link>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          }
+
           return (
             <Link
               key={item.href}

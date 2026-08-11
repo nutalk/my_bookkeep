@@ -17,6 +17,19 @@
   --color-white: #111827;
 }
 
+[data-theme="lightgray"] {
+  --color-neutral-950: #f4f5f7;
+  --color-neutral-900: #fbfcfd;
+  --color-neutral-800: #e8eaee;
+  --color-neutral-700: #d9dce1;
+  --color-neutral-600: #a9adb5;
+  --color-neutral-500: #71767e;
+  --color-neutral-400: #54595f;
+  --color-neutral-300: #3e4249;
+  --color-neutral-200: #2b2f35;
+  --color-white: #181a1e;
+}
+
 [data-theme="gray"] {
   --color-neutral-950: #17171a;
   --color-neutral-900: #232328;

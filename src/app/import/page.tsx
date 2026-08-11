@@ -16,11 +16,7 @@ export default function DataManagementPage() {
   const [importResult, setImportResult] = useState<{
     success: boolean;
     message: string;
-    stats?: {
-      assetsCreated: number;
-      liabilitiesCreated: number;
-      transactionsCreated: number;
-    };
+    stats?: Record<string, number>;
   } | null>(null);
   const [dragOver, setDragOver] = useState(false);
 
@@ -56,9 +52,9 @@ export default function DataManagementPage() {
       const text = await file.text();
       const data = JSON.parse(text);
 
-      if (!data.props || !Array.isArray(data.props)) {
+      if (!data.data || typeof data.data !== "object") {
         throw new Error(
-          "无效的导入文件格式，缺少 props 字段。请使用 OpenBookkeeping 的 export_data.py 导出。",
+          "无效的备份文件，缺少 data 字段。请使用本应用「数据管理 → 导出」生成的 JSON 文件。",
         );
       }
 
@@ -194,18 +190,12 @@ export default function DataManagementPage() {
           <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-5 mb-6">
             <h2 className="text-sm font-semibold text-white mb-3">导入说明</h2>
             <ol className="text-sm text-neutral-400 space-y-2 list-decimal list-inside">
-              <li>
-                在 OpenBookkeeping 项目根目录执行{" "}
-                <code className="bg-neutral-800 px-1.5 py-0.5 rounded text-blue-400">
-                  python export_data.py
-                </code>{" "}
-                导出数据
-              </li>
-              <li>将生成的 export.json 文件拖拽到下方区域或点击选择文件</li>
-              <li>系统会自动创建分类、资产、负债和交易记录</li>
+              <li>在本应用「导出」页下载 JSON 备份文件</li>
+              <li>将备份文件拖拽到下方区域或点击选择文件</li>
+              <li>系统将完整恢复：分类、资产、负债、交易记录、对账记录、统计快照和聊天记录</li>
               <li>
                 <span className="text-yellow-400">注意：</span>
-                导入前请确保当前账户没有已有数据（可使用清空功能）
+                导入前请先到「清空」页清空当前账户数据
               </li>
             </ol>
           </div>
@@ -256,7 +246,7 @@ export default function DataManagementPage() {
                     拖拽 JSON 文件到此处，或点击选择文件
                   </p>
                   <p className="text-xs text-neutral-600">
-                    仅支持从 OpenBookkeeping 导出的 .json 文件
+                    仅支持本应用导出的 .json 备份文件
                   </p>
                 </div>
               )}
@@ -287,22 +277,28 @@ export default function DataManagementPage() {
                     {importResult.message}
                   </p>
                   {importResult.stats && (
-                    <div className="mt-3 grid grid-cols-3 gap-3">
+                    <div className="mt-3 grid grid-cols-4 gap-3">
+                      <div className="bg-neutral-800 rounded-lg p-3 text-center">
+                        <p className="text-2xl font-bold text-amber-400">
+                          {importResult.stats.categories ?? 0}
+                        </p>
+                        <p className="text-xs text-neutral-400 mt-1">分类</p>
+                      </div>
                       <div className="bg-neutral-800 rounded-lg p-3 text-center">
                         <p className="text-2xl font-bold text-blue-400">
-                          {importResult.stats.assetsCreated}
+                          {importResult.stats.assets ?? 0}
                         </p>
                         <p className="text-xs text-neutral-400 mt-1">资产</p>
                       </div>
                       <div className="bg-neutral-800 rounded-lg p-3 text-center">
                         <p className="text-2xl font-bold text-purple-400">
-                          {importResult.stats.liabilitiesCreated}
+                          {importResult.stats.liabilities ?? 0}
                         </p>
                         <p className="text-xs text-neutral-400 mt-1">负债</p>
                       </div>
                       <div className="bg-neutral-800 rounded-lg p-3 text-center">
                         <p className="text-2xl font-bold text-emerald-400">
-                          {importResult.stats.transactionsCreated}
+                          {importResult.stats.transactions ?? 0}
                         </p>
                         <p className="text-xs text-neutral-400 mt-1">
                           交易记录
@@ -332,40 +328,6 @@ export default function DataManagementPage() {
             </div>
           )}
 
-          {/* JSON format reference */}
-          <div className="mt-8">
-            <details className="group">
-              <summary className="text-sm text-neutral-500 cursor-pointer hover:text-neutral-300 transition-colors">
-                查看 JSON 格式说明
-              </summary>
-              <pre className="mt-3 p-4 bg-neutral-900 border border-neutral-800 rounded-xl text-xs text-neutral-400 overflow-x-auto">
-                {`{
-  "version": "1.0",
-  "source": "OpenBookkeeping",
-  "summary": { ... },
-  "props": [
-    {
-      "name": "账户名称",
-      "p_type": 0,          // 0=固定资产, 1=流动资产
-                            // 2=长期负债, 3=流动负债
-      "start_date": "01/06/2023",
-      "term_month": 360,    // 期限(月)
-      "rate": 3.8,          // 年利率 (%)
-      "currency": 5000,     // 月固定现金流
-      "ctype": 1,           // 0=固定, 1=等额本息, 2=先息后本
-                            // 3=等额本金, 4=到期还本付息
-      "activate": true,
-      "details": [
-        { "occur_date": "01/06/2023",
-          "amount": 3000000,
-          "comment": "初始金额" }
-      ]
-    }
-  ]
-}`}
-              </pre>
-            </details>
-          </div>
         </>
       )}
 
@@ -375,7 +337,7 @@ export default function DataManagementPage() {
           <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-5 mb-6">
             <h2 className="text-sm font-semibold text-white mb-3">导出数据</h2>
             <p className="text-sm text-neutral-400 mb-4">
-              将当前账户的所有数据导出为 JSON 文件，可用于备份。
+              将当前账户的所有数据导出为 JSON 文件，可用于备份，也可在「导入」页完整恢复。
             </p>
 
             {exportLoading && (

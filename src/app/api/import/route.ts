@@ -1,346 +1,364 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
-import { assets, liabilities, transactions, categories } from "@/db/schema";
-import { eq, and } from "drizzle-orm";
+import {
+  assets,
+  liabilities,
+  transactions,
+  categories,
+  reconciliations,
+  monthlySnapshots,
+  chatSessions,
+  chatMessages,
+} from "@/db/schema";
+import { eq } from "drizzle-orm";
 import { requireUser } from "@/lib/auth";
 
 /**
- * OpenBookkeeping 数据导入接口
+ * 数据备份导入接口
  *
- * 接收 export_data.py 导出的 JSON 格式，将数据导入到当前登录用户下。
+ * 接收本应用「数据管理 → 导出」生成的 JSON 备份文件（source: "my_bookkeep"），
+ * 将全部数据完整恢复到当前登录用户下。
+ *
+ * 由于各表 ID 在数据库中全局共享（多用户同表），导入时会做 ID 重映射，
+ * 保持表间外键关系（categoryId / assetId / liabilityId / reconciliationId /
+ * transactionId / sessionId / parentId）不变。
  */
 
-// p_type: 0=固定资产, 1=流动资产, 2=长期负债, 3=流动负债
-// ctype: 0=固定现金流, 1=等额本息, 2=先息后本, 3=等额本金, 4=到期还本付息
-
-const ASSET_TYPE_MAP: Record<number, string> = {
-  0: "real_estate",
-  1: "deposit",
-};
-
-const LIABILITY_TYPE_MAP: Record<number, string> = {
-  2: "mortgage",
-  3: "personal_loan",
-};
-
-const REPAYMENT_METHOD_MAP: Record<number, string> = {
-  0: "fixed",
-  1: "equal_installment",
-  2: "interest_only",
-  3: "equal_principal",
-  4: "bullet",
-};
-
-interface DetailItem {
+interface ExportRow {
   id: number;
-  occur_date: string;
-  amount: number;
-  comment: string;
-}
-
-interface PropItem {
-  id: number;
-  name: string;
-  p_type: number;
-  start_date: string;
-  term_month: number;
-  rate: number;
-  currency: number;
-  ctype: number | null;
-  comment: string;
-  activate: boolean;
-  details: DetailItem[];
+  [key: string]: unknown;
 }
 
 interface ImportPayload {
   version?: string;
-  props: PropItem[];
+  source?: string;
+  data?: {
+    assets?: ExportRow[];
+    liabilities?: ExportRow[];
+    transactions?: ExportRow[];
+    categories?: ExportRow[];
+    reconciliations?: ExportRow[];
+    monthlySnapshots?: ExportRow[];
+    chatSessions?: ExportRow[];
+    chatMessages?: ExportRow[];
+  };
 }
 
-function parseDate(dateStr: string): Date {
-  // 支持 dd/mm/YYYY 和 YYYY-MM-DD 两种格式
-  if (/^\d{2}\/\d{2}\/\d{4}$/.test(dateStr)) {
-    const [d, m, y] = dateStr.split("/");
-    return new Date(`${y}-${m}-${d}`);
+interface TxLike {
+  insert(table: any): {
+    values(values: any): Promise<[{ insertId: number | bigint }, unknown]>;
+  };
+  update(table: any): {
+    set(values: any): { where(cond: any): Promise<unknown> };
+  };
+}
+
+function asRows(value: unknown): ExportRow[] {
+  return Array.isArray(value) ? (value as ExportRow[]) : [];
+}
+
+function toNumber(value: unknown): number | null {
+  if (value == null || value === "") return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
+function remapId(
+  map: Map<number, number>,
+  oldId: unknown,
+): number | null {
+  if (oldId == null) return null;
+  const mapped = map.get(Number(oldId));
+  return mapped ?? null;
+}
+
+function pickDates(
+  row: ExportRow,
+  keys: string[],
+): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const key of keys) {
+    const v = row[key];
+    if (v != null && v !== "") out[key] = new Date(String(v));
   }
-  return new Date(dateStr);
+  return out;
+}
+
+async function insertWithMap(
+  tx: TxLike,
+  table: any,
+  rows: ExportRow[],
+  toValues: (row: ExportRow) => Record<string, unknown>,
+): Promise<Map<number, number>> {
+  const idMap = new Map<number, number>();
+  for (const row of rows) {
+    const result = await tx.insert(table).values(toValues(row));
+    idMap.set(row.id, Number(result[0].insertId));
+  }
+  return idMap;
 }
 
 export async function POST(request: Request) {
   try {
     const user = await requireUser();
 
-    // 检查用户是否已有数据
-    const [existingAsset] = await db
-      .select({ id: assets.id })
-      .from(assets)
-      .where(eq(assets.userId, user.id))
-      .limit(1);
-    const [existingLiability] = await db
-      .select({ id: liabilities.id })
-      .from(liabilities)
-      .where(eq(liabilities.userId, user.id))
-      .limit(1);
-
-    if (existingAsset || existingLiability) {
+    // 检查用户是否已有数据，避免重复导入
+    const [existing] = await Promise.all([
+      db
+        .select({ id: assets.id })
+        .from(assets)
+        .where(eq(assets.userId, user.id))
+        .limit(1),
+      db
+        .select({ id: liabilities.id })
+        .from(liabilities)
+        .where(eq(liabilities.userId, user.id))
+        .limit(1),
+      db
+        .select({ id: categories.id })
+        .from(categories)
+        .where(eq(categories.userId, user.id))
+        .limit(1),
+      db
+        .select({ id: transactions.id })
+        .from(transactions)
+        .where(eq(transactions.userId, user.id))
+        .limit(1),
+    ]);
+    if (existing.some(Boolean)) {
       return NextResponse.json(
         {
-          error: "当前用户已有数据，请先到「数据管理」页面清空数据后再导入。",
+          error:
+            "当前用户已有数据，请先到「数据管理」页面清空数据后再导入。",
         },
         { status: 409 },
       );
     }
 
     const body: ImportPayload = await request.json();
-    const { props = [] } = body;
+    const { version, data } = body;
 
-    if (!props.length) {
-      return NextResponse.json({ error: "导入数据为空" }, { status: 400 });
+    if (!data || typeof data !== "object") {
+      return NextResponse.json(
+        {
+          error:
+            "无效的备份文件，缺少 data 字段。请使用本应用「数据管理 → 导出」生成的 JSON 文件。",
+        },
+        { status: 400 },
+      );
+    }
+    if (version && version !== "1.0") {
+      return NextResponse.json(
+        { error: `不支持的备份文件版本: ${version}` },
+        { status: 400 },
+      );
     }
 
-    // 创建默认分类
-    const defaultCategories = [
-      { name: "房产", type: "asset" },
-      { name: "存款", type: "asset" },
-      { name: "投资", type: "asset" },
-      { name: "收入来源", type: "asset" },
-      { name: "房贷", type: "liability" },
-      { name: "个人贷款", type: "liability" },
-      { name: "信用卡", type: "liability" },
-      { name: "其他资产", type: "asset" },
-      { name: "其他负债", type: "liability" },
-    ];
+    const categoryRows = asRows(data.categories);
+    const assetRows = asRows(data.assets);
+    const liabilityRows = asRows(data.liabilities);
+    const reconciliationRows = asRows(data.reconciliations);
+    const transactionRows = asRows(data.transactions);
+    const snapshotRows = asRows(data.monthlySnapshots);
+    const chatSessionRows = asRows(data.chatSessions);
+    const chatMessageRows = asRows(data.chatMessages);
 
-    const categoryMap = new Map<string, number>();
-    for (const cat of defaultCategories) {
-      const [existing] = await db
-        .select({ id: categories.id })
-        .from(categories)
-        .where(
-          and(
-            eq(categories.userId, user.id),
-            eq(categories.name, cat.name),
-            eq(categories.type, cat.type),
-          ),
-        )
-        .limit(1);
+    let insertedMessageCount = 0;
 
-      if (existing) {
-        categoryMap.set(`${cat.type}:${cat.name}`, existing.id);
-      } else {
-        const result = await db.insert(categories).values({
+    await db.transaction(async (tx) => {
+      // 1. 分类（parentId 自引用，先置空后回填）
+      const categoryIdMap = await insertWithMap(
+        tx,
+        categories,
+        categoryRows,
+        (row) => ({
           userId: user.id,
-          name: cat.name,
-          type: cat.type,
-        });
-        categoryMap.set(`${cat.type}:${cat.name}`, Number(result[0].insertId));
+          name: String(row.name),
+          type: String(row.type),
+          parentId: null,
+          ...pickDates(row, ["createdAt"]),
+        }),
+      );
+      for (const row of categoryRows) {
+        const newId = categoryIdMap.get(row.id);
+        const newParentId = remapId(categoryIdMap, row.parentId);
+        if (newId != null && newParentId != null) {
+          await tx
+            .update(categories)
+            .set({ parentId: newParentId })
+            .where(eq(categories.id, newId));
+        }
       }
-    }
+
+      // 2. 资产
+      const assetIdMap = await insertWithMap(
+        tx,
+        assets,
+        assetRows,
+        (row) => ({
+          userId: user.id,
+          name: String(row.name),
+          type: String(row.type),
+          categoryId: remapId(categoryIdMap, row.categoryId),
+          currentValue: toNumber(row.currentValue) ?? 0,
+          monthlyIncome: toNumber(row.monthlyIncome) ?? 0,
+          annualYield: toNumber(row.annualYield) ?? 0,
+          incomeFrequency:
+            row.incomeFrequency != null ? String(row.incomeFrequency) : null,
+          incomeDay: toNumber(row.incomeDay),
+          isActive: Boolean(row.isActive ?? true),
+          note: row.note != null ? String(row.note) : null,
+          ...pickDates(row, ["createdAt", "updatedAt"]),
+        }),
+      );
+
+      // 3. 负债
+      const liabilityIdMap = await insertWithMap(
+        tx,
+        liabilities,
+        liabilityRows,
+        (row) => ({
+          userId: user.id,
+          name: String(row.name),
+          type: String(row.type),
+          categoryId: remapId(categoryIdMap, row.categoryId),
+          totalPrincipal: toNumber(row.totalPrincipal) ?? 0,
+          remainingPrincipal: toNumber(row.remainingPrincipal) ?? 0,
+          annualRate: toNumber(row.annualRate) ?? 0,
+          repaymentMethod: String(row.repaymentMethod),
+          monthlyPayment: toNumber(row.monthlyPayment) ?? 0,
+          paymentDay: toNumber(row.paymentDay),
+          startDate:
+            row.startDate != null ? new Date(String(row.startDate)) : null,
+          endDate: row.endDate != null ? new Date(String(row.endDate)) : null,
+          isActive: Boolean(row.isActive ?? true),
+          note: row.note != null ? String(row.note) : null,
+          ...pickDates(row, ["createdAt", "updatedAt"]),
+        }),
+      );
+
+      // 4. 对账记录（transactionId 先置空，待交易导入后回填）
+      const reconciliationIdMap = await insertWithMap(
+        tx,
+        reconciliations,
+        reconciliationRows,
+        (row) => ({
+          userId: user.id,
+          assetId: remapId(assetIdMap, row.assetId),
+          liabilityId: remapId(liabilityIdMap, row.liabilityId),
+          expectedBalance: toNumber(row.expectedBalance) ?? 0,
+          actualBalance: toNumber(row.actualBalance) ?? 0,
+          difference: toNumber(row.difference) ?? 0,
+          reconciliationDate: new Date(String(row.reconciliationDate)),
+          transactionId: null,
+          note: row.note != null ? String(row.note) : null,
+          ...pickDates(row, ["createdAt"]),
+        }),
+      );
+
+      // 5. 交易记录
+      const transactionIdMap = await insertWithMap(
+        tx,
+        transactions,
+        transactionRows,
+        (row) => ({
+          userId: user.id,
+          type: String(row.type),
+          categoryId: remapId(categoryIdMap, row.categoryId),
+          assetId: remapId(assetIdMap, row.assetId),
+          liabilityId: remapId(liabilityIdMap, row.liabilityId),
+          amount: toNumber(row.amount) ?? 0,
+          principalPart: toNumber(row.principalPart) ?? 0,
+          interestPart: toNumber(row.interestPart) ?? 0,
+          description: String(row.description),
+          transactionDate: new Date(String(row.transactionDate)),
+          isAutoGenerated: Boolean(row.isAutoGenerated ?? false),
+          reconciliationId: remapId(reconciliationIdMap, row.reconciliationId),
+          note: row.note != null ? String(row.note) : null,
+          ...pickDates(row, ["createdAt"]),
+        }),
+      );
+
+      // 回填对账记录的 transactionId（循环引用）
+      for (const row of reconciliationRows) {
+        const newReconciliationId = reconciliationIdMap.get(row.id);
+        const newTransactionId = remapId(transactionIdMap, row.transactionId);
+        if (newReconciliationId != null && newTransactionId != null) {
+          await tx
+            .update(reconciliations)
+            .set({ transactionId: newTransactionId })
+            .where(eq(reconciliations.id, newReconciliationId));
+        }
+      }
+
+      // 6. 月度快照
+      await insertWithMap(
+        tx,
+        monthlySnapshots,
+        snapshotRows,
+        (row) => ({
+          userId: user.id,
+          month: String(row.month),
+          totalAssets: toNumber(row.totalAssets) ?? 0,
+          totalLiabilities: toNumber(row.totalLiabilities) ?? 0,
+          netWorth: toNumber(row.netWorth) ?? 0,
+          monthlyCashFlow: toNumber(row.monthlyCashFlow) ?? 0,
+          assetBreakdown:
+            row.assetBreakdown != null ? String(row.assetBreakdown) : null,
+          liabilityBreakdown:
+            row.liabilityBreakdown != null
+              ? String(row.liabilityBreakdown)
+              : null,
+          ...pickDates(row, ["createdAt"]),
+        }),
+      );
+
+      // 7. AI 聊天会话
+      const sessionIdMap = await insertWithMap(
+        tx,
+        chatSessions,
+        chatSessionRows,
+        (row) => ({
+          userId: user.id,
+          title: String(row.title),
+          ...pickDates(row, ["createdAt", "updatedAt"]),
+        }),
+      );
+
+      // 8. AI 聊天消息（仅导入会话存在且可映射的消息）
+      const sessionIdSet = new Set(sessionIdMap.keys());
+      const messageRows = chatMessageRows.filter((row) => {
+        const sessionId = toNumber(row.sessionId);
+        return sessionId != null && sessionIdSet.has(sessionId);
+      });
+      insertedMessageCount = messageRows.length;
+      await insertWithMap(
+        tx,
+        chatMessages,
+        messageRows,
+        (row) => ({
+          sessionId: sessionIdMap.get(Number(row.sessionId))!,
+          role: String(row.role),
+          content: String(row.content),
+          ...pickDates(row, ["createdAt"]),
+        }),
+      );
+    });
 
     const stats = {
-      assetsCreated: 0,
-      liabilitiesCreated: 0,
-      transactionsCreated: 0,
-      skipped: 0,
+      categories: categoryRows.length,
+      assets: assetRows.length,
+      liabilities: liabilityRows.length,
+      transactions: transactionRows.length,
+      reconciliations: reconciliationRows.length,
+      monthlySnapshots: snapshotRows.length,
+      chatSessions: chatSessionRows.length,
+      chatMessages: insertedMessageCount,
     };
-
-    for (const prop of props) {
-      const pType = prop.p_type;
-      const isAsset = pType <= 1;
-
-      if (isAsset) {
-        // ---------- 导入资产 ----------
-        const assetType = ASSET_TYPE_MAP[pType] || "other";
-        const categoryName =
-          assetType === "real_estate"
-            ? "房产"
-            : assetType === "deposit"
-              ? "存款"
-              : assetType === "investment"
-                ? "投资"
-                : "其他资产";
-        const categoryKey = `asset:${categoryName}`;
-        const categoryId = categoryMap.get(categoryKey) ?? null;
-
-        // 资产当前值 = 所有 detail 的 amount 总和
-        const currentValue = prop.details.reduce(
-          (sum: number, d: DetailItem) => sum + d.amount,
-          0,
-        );
-
-        const result = await db.insert(assets).values({
-          userId: user.id,
-          name: prop.name,
-          type: assetType as
-            | "real_estate"
-            | "deposit"
-            | "investment"
-            | "income_source"
-            | "other",
-          categoryId,
-          currentValue,
-          monthlyIncome: prop.currency || 0,
-          annualYield: prop.rate || 0,
-          isActive: prop.activate,
-          note: prop.comment || null,
-        });
-
-        const newAssetId = Number(result[0].insertId);
-        stats.assetsCreated++;
-
-        // 创建初始交易记录（第一条明细作为初始金额）
-        if (prop.details.length > 0) {
-          const firstDetail = prop.details[0];
-          await db.insert(transactions).values({
-            userId: user.id,
-            type: "income",
-            categoryId,
-            assetId: newAssetId,
-            amount: firstDetail.amount,
-            description: `[导入] ${firstDetail.comment || "初始金额"}`,
-            transactionDate: parseDate(firstDetail.occur_date),
-            note: `从 OpenBookkeeping 导入，原 Prop ID: ${prop.id}`,
-          });
-          stats.transactionsCreated++;
-
-          // 后续明细作为额外交易
-          for (let i = 1; i < prop.details.length; i++) {
-            const d = prop.details[i];
-            const txType = d.amount >= 0 ? "income" : "expense";
-            await db.insert(transactions).values({
-              userId: user.id,
-              type: txType,
-              categoryId,
-              assetId: newAssetId,
-              amount: Math.abs(d.amount),
-              description: `[导入] ${d.comment || "资产变动"}`,
-              transactionDate: parseDate(d.occur_date),
-              note: `从 OpenBookkeeping 导入`,
-            });
-            stats.transactionsCreated++;
-          }
-        }
-      } else {
-        // ---------- 导入负债 ----------
-        const liabilityType = LIABILITY_TYPE_MAP[pType] || "personal_loan";
-        const categoryName = liabilityType === "mortgage" ? "房贷" : "个人贷款";
-        const categoryKey = `liability:${categoryName}`;
-        const categoryId = categoryMap.get(categoryKey) ?? null;
-
-        const repaymentMethod =
-          REPAYMENT_METHOD_MAP[prop.ctype ?? 0] || "equal_installment";
-
-        // 负债金额：第一条明细为初始本金，后续明细的负数为还款
-        let totalPrincipal = 0;
-        let remainingPrincipal = 0;
-        let monthlyPayment = 0;
-        let first = true;
-
-        for (const d of prop.details) {
-          if (first) {
-            totalPrincipal = Math.abs(d.amount);
-            remainingPrincipal = totalPrincipal;
-            monthlyPayment = Math.abs(d.amount);
-            first = false;
-          } else if (d.amount < 0) {
-            remainingPrincipal += d.amount; // 负数为还款，减少本金
-          }
-        }
-
-        // 如果剩余本金为负，置为0
-        remainingPrincipal = Math.max(0, remainingPrincipal);
-
-        // 计算结束日期
-        let endDate: Date | null = null;
-        if (prop.term_month > 0) {
-          const start = parseDate(prop.start_date);
-          endDate = new Date(start);
-          endDate.setMonth(endDate.getMonth() + prop.term_month);
-        }
-
-        const result = await db.insert(liabilities).values({
-          userId: user.id,
-          name: prop.name,
-          type: liabilityType as
-            | "mortgage"
-            | "car_loan"
-            | "credit_card"
-            | "personal_loan"
-            | "other",
-          categoryId,
-          totalPrincipal,
-          remainingPrincipal,
-          annualRate: prop.rate || 0,
-          repaymentMethod: repaymentMethod as
-            | "equal_installment"
-            | "equal_principal"
-            | "interest_only"
-            | "bullet"
-            | "minimum"
-            | "fixed",
-          monthlyPayment,
-          paymentDay: null,
-          startDate: parseDate(prop.start_date),
-          endDate,
-          isActive: prop.activate,
-          note: prop.comment || null,
-        });
-
-        const newLiabilityId = Number(result[0].insertId);
-        stats.liabilitiesCreated++;
-
-        // 创建交易记录
-        for (let i = 0; i < prop.details.length; i++) {
-          const d = prop.details[i];
-          if (i === 0) {
-            // 第一条：初始借款
-            await db.insert(transactions).values({
-              userId: user.id,
-              type: "liability_principal_change",
-              categoryId,
-              liabilityId: newLiabilityId,
-              amount: Math.abs(d.amount),
-              description: `[导入] ${d.comment || "初始借款"}`,
-              transactionDate: parseDate(d.occur_date),
-              note: `从 OpenBookkeeping 导入，原 Prop ID: ${prop.id}`,
-            });
-            stats.transactionsCreated++;
-          } else if (d.amount < 0) {
-            // 还款
-            await db.insert(transactions).values({
-              userId: user.id,
-              type: "liability_repayment",
-              categoryId,
-              liabilityId: newLiabilityId,
-              amount: Math.abs(d.amount),
-              principalPart: Math.abs(d.amount),
-              interestPart: 0,
-              description: `[导入] ${d.comment || "还款"}`,
-              transactionDate: parseDate(d.occur_date),
-              note: `从 OpenBookkeeping 导入`,
-            });
-            stats.transactionsCreated++;
-          } else {
-            // 其他正向变动（追加借款等）
-            await db.insert(transactions).values({
-              userId: user.id,
-              type: "liability_principal_change",
-              categoryId,
-              liabilityId: newLiabilityId,
-              amount: d.amount,
-              description: `[导入] ${d.comment || "负债变动"}`,
-              transactionDate: parseDate(d.occur_date),
-              note: `从 OpenBookkeeping 导入`,
-            });
-            stats.transactionsCreated++;
-          }
-        }
-      }
-    }
 
     return NextResponse.json({
       success: true,
-      message: `导入完成！共导入 ${stats.assetsCreated} 个资产、${stats.liabilitiesCreated} 个负债、${stats.transactionsCreated} 条交易记录。`,
+      message: `导入完成！共恢复 ${stats.categories} 个分类、${stats.assets} 个资产、${stats.liabilities} 个负债、${stats.transactions} 条交易记录、${stats.reconciliations} 条对账、${stats.monthlySnapshots} 个月度快照、${stats.chatSessions} 个聊天会话。`,
       stats,
     });
   } catch (e) {

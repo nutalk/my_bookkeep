@@ -12,7 +12,8 @@
 
 # testing
 /coverage
-
+.kilocode/
+.codebuddy/
 # next.js
 /.next/
 /out/

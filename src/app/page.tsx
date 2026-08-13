@@ -94,6 +94,7 @@ export default function Home() {
     }
     return Array.from(map.entries())
       .sort((a, b) => b[1] - a[1])
+      .filter(([, value]) => value > 0)
       .map(([label, value], i) => ({ label, value, color: PIE_COLORS[i % PIE_COLORS.length] }));
   }, [assets]);
 
@@ -104,6 +105,7 @@ export default function Home() {
     }
     return Array.from(map.entries())
       .sort((a, b) => b[1] - a[1])
+      .filter(([, value]) => value > 0)
       .map(([label, value], i) => ({ label, value, color: PIE_COLORS[i % PIE_COLORS.length] }));
   }, [liabilities]);
 

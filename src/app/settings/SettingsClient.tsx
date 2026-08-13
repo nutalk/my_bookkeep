@@ -194,7 +194,6 @@ export default function SettingsClient({ section }: { section: Section }) {
     if (section === "data" && dataTab === "export") {
       fetchExportPreview();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [section, dataTab]);
 
   const handleExportDownload = () => {

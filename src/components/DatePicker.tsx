@@ -64,11 +64,6 @@ export default function DatePicker({
   );
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // 未聚焦时同步外部 value（如自动计算出的结束日期）
-  useEffect(() => {
-    if (!focused) setDraft(value);
-  }, [value, focused]);
-
   // 点击弹层外部时关闭
   useEffect(() => {
     if (!open) return;
@@ -96,6 +91,7 @@ export default function DatePicker({
 
   const handleFocus = () => {
     if (disabled) return;
+    setDraft(value);
     setFocused(true);
     setViewDate(parseISO(value) ?? new Date());
     setOpen(true);
@@ -143,7 +139,7 @@ export default function DatePicker({
       <div className="relative">
         <input
           type="text"
-          value={draft}
+          value={focused ? draft : value}
           onChange={handleTextChange}
           onFocus={handleFocus}
           onBlur={handleBlur}

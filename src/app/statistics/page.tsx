@@ -618,19 +618,18 @@ function HistoryTab() {
 
   useEffect(() => {
     let mounted = true;
-    setSelectedMonth(null);
     fetch(`/api/statistics/history?months=${months}`)
       .then((r) => r.json())
       .then((d) => {
         if (mounted) {
           setData(d);
           setLoading(false);
+          setSelectedMonth(null);
         }
       });
     return () => {
       mounted = false;
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [months, refreshKey]);
 
   const lineData = useMemo(() => {
@@ -830,7 +829,6 @@ function PredictionTab() {
     return () => {
       mounted = false;
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [predictionMonths, refreshKey]);
 
   const lineData = useMemo(() => {

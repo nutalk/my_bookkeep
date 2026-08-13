@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
-import { formatMoney, getAssetTypeLabel, getLiabilityTypeLabel } from "@/lib/utils";
+import { formatMoney } from "@/lib/utils";
 import { PieChart } from "@/components/PieChart";
 import { HorizontalBarChart } from "@/components/HorizontalBarChart";
 
@@ -90,8 +90,7 @@ export default function Home() {
   const assetPieData = useMemo(() => {
     const map = new Map<string, number>();
     for (const a of assets) {
-      const label = getAssetTypeLabel(a.type);
-      map.set(label, (map.get(label) ?? 0) + a.currentValue);
+      map.set(a.name, (map.get(a.name) ?? 0) + a.currentValue);
     }
     return Array.from(map.entries())
       .sort((a, b) => b[1] - a[1])
@@ -101,8 +100,7 @@ export default function Home() {
   const liabilityPieData = useMemo(() => {
     const map = new Map<string, number>();
     for (const l of liabilities) {
-      const label = getLiabilityTypeLabel(l.type);
-      map.set(label, (map.get(label) ?? 0) + l.remainingPrincipal);
+      map.set(l.name, (map.get(l.name) ?? 0) + l.remainingPrincipal);
     }
     return Array.from(map.entries())
       .sort((a, b) => b[1] - a[1])

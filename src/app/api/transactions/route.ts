@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { transactions, assets, liabilities } from "@/db/schema";
-import { eq, and, gte, lte, desc, sql } from "drizzle-orm";
+import { eq, and, gte, lte, desc, sql, getTableColumns } from "drizzle-orm";
 import { requireUser } from "@/lib/auth";
 
 export async function GET(request: Request) {
@@ -46,8 +46,14 @@ export async function GET(request: Request) {
       .where(and(...conditions));
 
     const result = await db
-      .select()
+      .select({
+        ...getTableColumns(transactions),
+        assetName: assets.name,
+        liabilityName: liabilities.name,
+      })
       .from(transactions)
+      .leftJoin(assets, eq(assets.id, transactions.assetId))
+      .leftJoin(liabilities, eq(liabilities.id, transactions.liabilityId))
       .where(and(...conditions))
       .orderBy(desc(transactions.transactionDate))
       .limit(limitNum)

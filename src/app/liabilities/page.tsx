@@ -243,6 +243,8 @@ export default function LiabilitiesPage() {
       } else if (t.type === "liability_repayment") {
         const pr = (t.principalPart ?? 0) > 0 ? t.principalPart : t.amount;
         balance += pr;
+      } else if (t.type === "reconciliation") {
+        balance -= t.amount;
       }
     }
     // Walk forward
@@ -253,6 +255,8 @@ export default function LiabilitiesPage() {
       } else if (t.type === "liability_repayment") {
         const pr = (t.principalPart ?? 0) > 0 ? t.principalPart : t.amount;
         balance -= pr;
+      } else if (t.type === "reconciliation") {
+        balance += t.amount;
       }
       result.push({ ...t, balance });
     }
@@ -271,6 +275,8 @@ export default function LiabilitiesPage() {
       } else if (t.type === "liability_repayment") {
         const pr = (t.principalPart ?? 0) > 0 ? t.principalPart : t.amount;
         balance += pr;
+      } else if (t.type === "reconciliation") {
+        balance -= t.amount;
       }
     }
     const monthMap = new Map<string, number>();
@@ -285,6 +291,8 @@ export default function LiabilitiesPage() {
       } else if (t.type === "liability_repayment") {
         const pr = (t.principalPart ?? 0) > 0 ? t.principalPart : t.amount;
         balance -= pr;
+      } else if (t.type === "reconciliation") {
+        balance += t.amount;
       }
       const d = new Date(t.transactionDate);
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;

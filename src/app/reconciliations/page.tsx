@@ -72,11 +72,6 @@ export default function ReconciliationsPage() {
 
   const refresh = () => setRefreshKey((k) => k + 1);
 
-  const isReconciled = (kind: "asset" | "liability", id: number) =>
-    reconciliations.some((r) =>
-      kind === "asset" ? r.assetId === id : r.liabilityId === id
-    );
-
   const getLastReconciliation = (kind: "asset" | "liability", id: number) => {
     const recs = reconciliations.filter((r) =>
       kind === "asset" ? r.assetId === id : r.liabilityId === id
@@ -87,6 +82,15 @@ export default function ReconciliationsPage() {
         new Date(b.reconciliationDate).getTime() -
         new Date(a.reconciliationDate).getTime()
     )[0];
+  };
+
+  const ONE_WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+
+  // 只有最近一周内有过对账记录才打勾
+  const isReconciled = (kind: "asset" | "liability", id: number) => {
+    const last = getLastReconciliation(kind, id);
+    if (!last) return false;
+    return Date.now() - new Date(last.reconciliationDate).getTime() <= ONE_WEEK_MS;
   };
 
   const handleSelect = (kind: "asset" | "liability", item: Asset | Liability) => {

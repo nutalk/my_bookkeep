@@ -16,8 +16,10 @@ FROM base AS runner
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 
-RUN addgroup --system --gid 1001 nodejs
-RUN adduser --system --uid 1001 nextjs
+# Bun >= 1.3.4 的基础镜像已换基到 Debian trixie，不再自带 adduser/addgroup，
+# 改用 passwd 包提供的 groupadd/useradd 创建非 root 用户（行为与之前一致）。
+RUN groupadd --gid 1001 nodejs && \
+    useradd --uid 1001 --gid nodejs --home-dir /nonexistent --no-create-home nextjs
 
 COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./

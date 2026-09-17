@@ -34,9 +34,9 @@ const THEME_OPTIONS: {
     key: "lightgray",
     label: "浅灰色",
     desc: "浅灰底色",
-    bg: "#f4f5f7",
-    card: "#fbfcfd",
-    text: "#181a1e",
+    bg: "#edeeee",
+    card: "#f7f7f8",
+    text: "#171819",
   },
   {
     key: "gray",

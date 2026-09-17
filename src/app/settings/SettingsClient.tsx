@@ -9,7 +9,15 @@ import {
   loadConfig,
   saveConfig,
 } from "@/lib/ai-config";
-import { applyTheme, getTheme, type Theme } from "@/lib/theme";
+import {
+  applyTheme,
+  getTheme,
+  getCustomColors,
+  getDefaultCustomColors,
+  saveCustomColors,
+  CUSTOM_THEME_COLORS,
+  type Theme,
+} from "@/lib/theme";
 
 type Section = "data" | "ai" | "theme";
 type DataTab = "import" | "export" | "clear";
@@ -54,7 +62,20 @@ const THEME_OPTIONS: {
     card: "#171717",
     text: "#ffffff",
   },
+  {
+    key: "custom",
+    label: "自定义",
+    desc: "用色盘调配主要颜色",
+    // 这里的预览色只是占位，实际会用已保存的自定义配色动态覆盖
+    bg: "#0a0a0a",
+    card: "#171717",
+    text: "#ffffff",
+  },
 ];
+
+const COLOR_GROUPS = Array.from(
+  new Set(CUSTOM_THEME_COLORS.map((c) => c.group)),
+);
 
 export default function SettingsClient({ section }: { section: Section }) {
   const router = useRouter();
@@ -72,9 +93,11 @@ export default function SettingsClient({ section }: { section: Section }) {
 
   // ===== 主题状态 =====
   const [theme, setTheme] = useState<Theme>("dark");
+  const [customColors, setCustomColors] = useState<Record<string, string>>({});
 
   useEffect(() => {
     setTheme(getTheme());
+    setCustomColors(getCustomColors());
   }, []);
 
   // ===== 数据管理状态 =====
@@ -112,6 +135,22 @@ export default function SettingsClient({ section }: { section: Section }) {
   const handleThemeChange = (t: Theme) => {
     applyTheme(t);
     setTheme(t);
+  };
+
+  const handleColorChange = (key: string, value: string) => {
+    const next = { ...customColors, [key]: value };
+    setCustomColors(next);
+    saveCustomColors(next);
+    if (theme !== "custom") {
+      applyTheme("custom");
+      setTheme("custom");
+    }
+  };
+
+  const handleResetColors = () => {
+    const next = getDefaultCustomColors();
+    setCustomColors(next);
+    saveCustomColors(next);
   };
 
   // ===== 导入逻辑 =====
@@ -601,10 +640,18 @@ export default function SettingsClient({ section }: { section: Section }) {
       {section === "theme" && (
         <div className="space-y-3">
           <p className="text-sm text-neutral-400">
-            选择页面主题，选择后立即生效并记住你的偏好。
+            选择页面主题，选择后立即生效并记住你的偏好。选择「自定义」可用色盘调配主要颜色。
           </p>
           {THEME_OPTIONS.map((opt) => {
             const active = theme === opt.key;
+            const preview =
+              opt.key === "custom"
+                ? {
+                    bg: customColors["--color-neutral-950"] ?? "#0a0a0a",
+                    card: customColors["--color-neutral-900"] ?? "#171717",
+                    text: customColors["--color-white"] ?? "#ffffff",
+                  }
+                : { bg: opt.bg, card: opt.card, text: opt.text };
             return (
               <button
                 key={opt.key}
@@ -617,16 +664,16 @@ export default function SettingsClient({ section }: { section: Section }) {
               >
                 <div
                   className="w-11 h-11 rounded-lg border border-neutral-700 overflow-hidden shrink-0"
-                  style={{ background: opt.bg }}
+                  style={{ background: preview.bg }}
                 >
-                  <div className="h-4" style={{ background: opt.card }} />
+                  <div className="h-4" style={{ background: preview.card }} />
                   <div
                     className="h-2 w-6 mx-auto mt-1 rounded-sm"
-                    style={{ background: opt.text }}
+                    style={{ background: preview.text }}
                   />
                   <div
                     className="h-2 w-4 mx-auto mt-1 rounded-sm opacity-60"
-                    style={{ background: opt.text }}
+                    style={{ background: preview.text }}
                   />
                 </div>
                 <div>
@@ -641,6 +688,71 @@ export default function SettingsClient({ section }: { section: Section }) {
               </button>
             );
           })}
+
+          {/* 自定义配色：色盘 */}
+          {theme === "custom" && (
+            <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-4 space-y-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h3 className="text-sm font-medium text-white">自定义配色</h3>
+                  <p className="text-xs text-neutral-500 mt-0.5">
+                    点击色块打开色盘，选择后立即生效
+                  </p>
+                </div>
+                <button
+                  onClick={handleResetColors}
+                  className="shrink-0 text-xs px-3 py-1.5 rounded-lg border border-neutral-700 text-neutral-300 hover:text-white hover:border-neutral-500 transition-colors"
+                >
+                  恢复默认
+                </button>
+              </div>
+
+              {COLOR_GROUPS.map((group) => (
+                <div key={group}>
+                  <div className="text-xs text-neutral-500 font-medium tracking-wider mb-2">
+                    {group}
+                  </div>
+                  <div className="space-y-1">
+                    {CUSTOM_THEME_COLORS.filter((c) => c.group === group).map(
+                      (c) => {
+                        const value = customColors[c.key] ?? c.fallback;
+                        return (
+                          <div
+                            key={c.key}
+                            className="flex items-center justify-between gap-3 rounded-lg px-2 py-1.5 hover:bg-neutral-800/60 transition-colors"
+                          >
+                            <span className="text-sm text-neutral-300">
+                              {c.label}
+                            </span>
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-mono text-neutral-500 uppercase">
+                                {value}
+                              </span>
+                              <label className="relative h-8 w-12 shrink-0 rounded-md border border-neutral-700 overflow-hidden cursor-pointer">
+                                <span
+                                  className="absolute inset-0"
+                                  style={{ background: value }}
+                                />
+                                <input
+                                  type="color"
+                                  value={value}
+                                  onChange={(e) =>
+                                    handleColorChange(c.key, e.target.value)
+                                  }
+                                  aria-label={c.label}
+                                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                                />
+                              </label>
+                            </div>
+                          </div>
+                        );
+                      },
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>

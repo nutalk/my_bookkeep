@@ -32,7 +32,7 @@ export default function RootLayout({
       >
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{var t=localStorage.getItem("theme");if(t==="light"||t==="gray"||t==="lightgray")document.documentElement.setAttribute("data-theme",t);}catch(e){}})();`,
+            __html: `(function(){try{var d=document.documentElement,t=localStorage.getItem("theme");if(!t)return;if(t==="custom"){d.setAttribute("data-theme","custom");var c=JSON.parse(localStorage.getItem("theme-custom-colors")||"{}");for(var k in c){if(/^#[0-9a-fA-F]{6}$/.test(c[k]))d.style.setProperty(k,c[k]);}}else if(t==="light"||t==="gray"||t==="lightgray"){d.setAttribute("data-theme",t);}}catch(e){}})();`,
           }}
         />
         <ChatProvider>

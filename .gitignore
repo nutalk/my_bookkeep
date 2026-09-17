@@ -32,9 +32,8 @@ yarn-error.log*
 .pnpm-debug.log*
 
 # env files (can opt-in for committing if needed)
-.env
-.env.bac
-.env.cld
+.env*
+!.env.example
 
 # vercel
 .vercel
@@ -45,3 +44,6 @@ next-env.d.ts
 # cloudflare
 .wrangler
 .open-next
+
+# wechat miniprogram (开发者工具生成的私有配置)
+miniprogram/project.private.config.json

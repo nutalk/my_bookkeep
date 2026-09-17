@@ -5,9 +5,9 @@
 - **Package manager**: Use `bun` (not npm/yarn)
 - **Never run** `next dev` or `bun dev` - the sandbox handles this automatically
 - **No test framework** exists - do not try to run tests
-- **Always commit and push** after completing changes:
+- **Always commit（但不要 push）** after completing changes:
   ```bash
-  bun typecheck && bun lint && git add -A && git commit -m "descriptive message" && git push
+  bun typecheck && bun lint && git add -A && git commit -m "descriptive message"
   ```
 
 ## Commands

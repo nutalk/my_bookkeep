@@ -8,7 +8,8 @@ until bun -e "const c = require('mysql2/promise'); const conn = await c.createCo
 done
 
 echo "Running database migrations..."
-bun db:migrate || echo "Migration skipped (tables may already exist)"
+# standalone 产物的 package.json 里没有 scripts 字段，直接运行脚本文件
+bun run ./src/db/migrate.ts || echo "Migration skipped (tables may already exist)"
 
 echo "Starting application..."
 exec bun server.js

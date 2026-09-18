@@ -102,8 +102,10 @@ export async function POST(request: Request) {
   try {
     const user = await requireUser();
 
-    // 检查用户是否已有数据，避免重复导入
-    const [existing] = await Promise.all([
+    // 检查用户是否已有数据，避免重复导入。
+    // 必须覆盖全部业务表，只查其中一部分会漏判：
+    // chat_messages 没有 user_id，但它必然挂在某个会话下，查 chat_sessions 即可覆盖。
+    const existingChecks = await Promise.all([
       db
         .select({ id: assets.id })
         .from(assets)
@@ -124,8 +126,23 @@ export async function POST(request: Request) {
         .from(transactions)
         .where(eq(transactions.userId, user.id))
         .limit(1),
+      db
+        .select({ id: reconciliations.id })
+        .from(reconciliations)
+        .where(eq(reconciliations.userId, user.id))
+        .limit(1),
+      db
+        .select({ id: monthlySnapshots.id })
+        .from(monthlySnapshots)
+        .where(eq(monthlySnapshots.userId, user.id))
+        .limit(1),
+      db
+        .select({ id: chatSessions.id })
+        .from(chatSessions)
+        .where(eq(chatSessions.userId, user.id))
+        .limit(1),
     ]);
-    if (existing.some(Boolean)) {
+    if (existingChecks.some((rows) => rows.length > 0)) {
       return NextResponse.json(
         {
           error:

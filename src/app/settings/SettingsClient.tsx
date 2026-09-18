@@ -536,10 +536,13 @@ export default function SettingsClient({ section }: { section: Section }) {
                     </div>
                   </div>
                   <button
-                    onClick={() => router.push("/login")}
+                    onClick={() => {
+                      setClearResult(null);
+                      setDataTab("import");
+                    }}
                     className="mt-3 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-lg transition-colors"
                   >
-                    返回登录页
+                    去导入数据
                   </button>
                 </div>
               ) : (

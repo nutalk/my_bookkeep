@@ -2,6 +2,7 @@ import { db } from "./index";
 import * as schema from "./schema";
 import mysql from "mysql2/promise";
 import { mysqlSsl } from "./config";
+import { reconcileAllUserBalances } from "./reconcile";
 
 async function ensureTables() {
   const tables = [
@@ -191,8 +192,11 @@ async function ensureTables() {
   await conn.end();
 }
 
+// 建表后按流水重算余额，修正历史数据里余额与流水不一致的账户（幂等）
 ensureTables()
-  .then(() => {
+  .then(async () => {
+    await reconcileAllUserBalances();
+    console.log("Balances reconciled from transactions.");
     console.log("All tables ready.");
     process.exit(0);
   })

@@ -10,6 +10,7 @@ import {
   getLiabilityTypeLabel,
   getRepaymentMethodLabel,
 } from "@/lib/utils";
+import { runningLiabilityBalances } from "@/lib/ledger";
 
 interface Liability {
   id: number;
@@ -64,9 +65,8 @@ export default function LiabilitiesPage() {
   const [loading, setLoading] = useState(true);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [details, setDetails] = useState<Record<number, Transaction[]>>({});
-  const [txTotals, setTxTotals] = useState<Record<number, number>>({});
   const [txPages, setTxPages] = useState<Record<number, number>>({});
-  const [txLimit] = useState(20);
+  const txLimit = 20;
   const [editing, setEditing] = useState(false);
   const [editForm, setEditForm] = useState({
     name: "",
@@ -197,26 +197,23 @@ export default function LiabilitiesPage() {
     const payment = calcMonthlyPayment(principal, rate, editForm.repaymentMethod, months);
     setEditForm((f) => ({ ...f, monthlyPayment: String(Math.round(payment * 100) / 100) }));
   };
-  const loadDetails = async (liabilityId: number, page = 1) => {
-    const offset = (page - 1) * txLimit;
-    const res = await fetch(`/api/transactions?liabilityId=${liabilityId}&limit=${txLimit}&offset=${offset}`);
+  // 余额列要按完整流水重放才准确，这里一次拉全量，前端分页
+  const loadDetails = async (liabilityId: number) => {
+    const res = await fetch(
+      `/api/transactions?liabilityId=${liabilityId}&all=1`,
+    );
     const result = await res.json();
-    setDetails((d) => ({ ...d, [liabilityId]: result.data }));
-    setTxTotals((t) => ({ ...t, [liabilityId]: result.total }));
-    setTxPages((p) => ({ ...p, [liabilityId]: page }));
+    setDetails((d) => ({ ...d, [liabilityId]: result.data ?? [] }));
+    setTxPages((p) => ({ ...p, [liabilityId]: 1 }));
   };
 
   const handleSelect = (id: number) => {
     setSelectedId(id);
-    setDetails((d) => {
-      const nd = { ...d };
-      delete nd[id];
-      return nd;
-    });
     loadDetails(id);
   };
 
-  const totalPages = (id: number) => Math.max(1, Math.ceil((txTotals[id] ?? 0) / txLimit));
+  const totalPages = (id: number) =>
+    Math.max(1, Math.ceil((details[id]?.length ?? 0) / txLimit));
   const currentPage = (id: number) => txPages[id] ?? 1;
 
   const txTypeLabel = (type: string) => {
@@ -230,74 +227,36 @@ export default function LiabilitiesPage() {
   const selected = liabilities.find((l) => l.id === selectedId);
   const selectedTxs = selectedId ? details[selectedId] ?? null : null;
 
-  // Compute running balances for transaction table (oldest-first)
+  // 以流水为准：按时间从旧到新重放完整流水，得到每一笔之后的余额
   const txsWithBalance = (() => {
-    if (!selected || !selectedTxs || selectedTxs.length === 0) return [];
-    const sorted = [...selectedTxs].reverse();
-    // Walk backwards from current to get initial balance
-    let balance = selected.remainingPrincipal;
-    for (let i = sorted.length - 1; i >= 0; i--) {
-      const t = sorted[i];
-      if (t.type === "liability_principal_change") {
-        balance -= t.amount;
-      } else if (t.type === "liability_repayment") {
-        const pr = (t.principalPart ?? 0) > 0 ? t.principalPart : t.amount;
-        balance += pr;
-      } else if (t.type === "reconciliation") {
-        balance -= t.amount;
-      }
-    }
-    // Walk forward
-    const result: (Transaction & { balance: number })[] = [];
-    for (const t of sorted) {
-      if (t.type === "liability_principal_change") {
-        balance += t.amount;
-      } else if (t.type === "liability_repayment") {
-        const pr = (t.principalPart ?? 0) > 0 ? t.principalPart : t.amount;
-        balance -= pr;
-      } else if (t.type === "reconciliation") {
-        balance += t.amount;
-      }
-      result.push({ ...t, balance });
-    }
-    return result.reverse();
+    if (!selectedTxs || selectedTxs.length === 0) return [];
+    const oldestFirst = [...selectedTxs].reverse();
+    const balances = runningLiabilityBalances(oldestFirst);
+    const balanceById = new Map<number, number>();
+    oldestFirst.forEach((t, i) => balanceById.set(t.id, balances[i]));
+    return selectedTxs.map((t) => ({
+      ...t,
+      balance: balanceById.get(t.id) ?? 0,
+    }));
   })();
 
-  // Monthly chart data
+  const currentPageNum = selectedId ? currentPage(selectedId) : 1;
+  const visibleTxs = txsWithBalance.slice(
+    (currentPageNum - 1) * txLimit,
+    currentPageNum * txLimit,
+  );
+
+  // Monthly chart data（同样基于完整流水）
   const chartData = (() => {
-    if (!selected || !selectedTxs || selectedTxs.length === 0) return [];
-    const sorted = [...selectedTxs].reverse();
-    let balance = selected.remainingPrincipal;
-    for (let i = sorted.length - 1; i >= 0; i--) {
-      const t = sorted[i];
-      if (t.type === "liability_principal_change") {
-        balance -= t.amount;
-      } else if (t.type === "liability_repayment") {
-        const pr = (t.principalPart ?? 0) > 0 ? t.principalPart : t.amount;
-        balance += pr;
-      } else if (t.type === "reconciliation") {
-        balance -= t.amount;
-      }
-    }
+    if (!selectedTxs || selectedTxs.length === 0) return [];
+    const oldestFirst = [...selectedTxs].reverse();
+    const balances = runningLiabilityBalances(oldestFirst);
     const monthMap = new Map<string, number>();
-    if (sorted.length > 0) {
-      const d = new Date(sorted[0].transactionDate);
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-      monthMap.set(key, balance);
-    }
-    for (const t of sorted) {
-      if (t.type === "liability_principal_change") {
-        balance += t.amount;
-      } else if (t.type === "liability_repayment") {
-        const pr = (t.principalPart ?? 0) > 0 ? t.principalPart : t.amount;
-        balance -= pr;
-      } else if (t.type === "reconciliation") {
-        balance += t.amount;
-      }
+    oldestFirst.forEach((t, i) => {
       const d = new Date(t.transactionDate);
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-      monthMap.set(key, balance);
-    }
+      monthMap.set(key, balances[i]);
+    });
     const points = Array.from(monthMap.entries())
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([month, value]) => {
@@ -492,7 +451,7 @@ export default function LiabilitiesPage() {
                 <div className="px-4 py-3 border-b border-neutral-800">
                   <h3 className="text-sm font-medium text-white">交易明细</h3>
                 </div>
-                {txsWithBalance.length === 0 ? (
+                {visibleTxs.length === 0 ? (
                   <p className="text-center text-neutral-500 py-8 text-sm">
                     暂无交易记录
                   </p>
@@ -518,7 +477,7 @@ export default function LiabilitiesPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {txsWithBalance.map((t) => (
+                      {visibleTxs.map((t) => (
                         <tr
                           key={t.id}
                           className="border-b border-neutral-800/50"
@@ -567,11 +526,16 @@ export default function LiabilitiesPage() {
                 {selected && totalPages(selected.id) > 1 && (
                   <div className="flex items-center justify-between px-4 py-3 border-t border-neutral-800">
                     <span className="text-xs text-neutral-500">
-                      共 {txTotals[selected.id] ?? 0} 条
+                      共 {details[selected.id]?.length ?? 0} 条
                     </span>
                     <div className="flex items-center gap-2">
                       <button
-                        onClick={() => loadDetails(selected.id, currentPage(selected.id) - 1)}
+                        onClick={() =>
+                          setTxPages((p) => ({
+                            ...p,
+                            [selected.id]: Math.max(1, currentPage(selected.id) - 1),
+                          }))
+                        }
                         disabled={currentPage(selected.id) <= 1}
                         className="text-xs text-neutral-400 hover:text-white disabled:opacity-30 px-2 py-1 rounded transition-colors"
                       >
@@ -581,7 +545,15 @@ export default function LiabilitiesPage() {
                         {currentPage(selected.id)} / {totalPages(selected.id)}
                       </span>
                       <button
-                        onClick={() => loadDetails(selected.id, currentPage(selected.id) + 1)}
+                        onClick={() =>
+                          setTxPages((p) => ({
+                            ...p,
+                            [selected.id]: Math.min(
+                              totalPages(selected.id),
+                              currentPage(selected.id) + 1,
+                            ),
+                          }))
+                        }
                         disabled={currentPage(selected.id) >= totalPages(selected.id)}
                         className="text-xs text-neutral-400 hover:text-white disabled:opacity-30 px-2 py-1 rounded transition-colors"
                       >

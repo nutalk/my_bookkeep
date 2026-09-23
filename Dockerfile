@@ -26,11 +26,13 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
 # Copy migration files and scripts
+# src/db/migrate.ts 会在启动时运行，并引用 src/lib/ledger.ts，两者都要打进镜像
 COPY --from=builder /app/src/db ./src/db
+COPY --from=builder /app/src/lib ./src/lib
 COPY --from=builder /app/drizzle.config.ts ./
 COPY --from=builder /app/docker-entrypoint.sh ./
 RUN chmod +x docker-entrypoint.sh && \
-    chown -R nextjs:nodejs src/db drizzle.config.ts docker-entrypoint.sh
+    chown -R nextjs:nodejs src drizzle.config.ts docker-entrypoint.sh
 
 USER nextjs
 

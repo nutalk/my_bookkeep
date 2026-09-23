@@ -12,6 +12,7 @@ import {
 } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { requireUser } from "@/lib/auth";
+import { reconcileUserBalances } from "@/db/reconcile";
 
 /**
  * 数据备份导入接口
@@ -361,6 +362,9 @@ export async function POST(request: Request) {
         }),
       );
     });
+
+    // 以流水为准：导入后按流水重算余额，修正备份里可能存在的「余额与流水不一致」
+    await reconcileUserBalances(user.id);
 
     const stats = {
       categories: categoryRows.length,

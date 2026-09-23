@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { AssetForm } from "@/components/Forms";
 import { BalanceChart } from "@/components/BalanceChart";
 import { formatMoney, formatDate, getAssetTypeLabel } from "@/lib/utils";
+import { runningAssetBalances } from "@/lib/ledger";
 
 interface Asset {
   id: number;
@@ -31,9 +32,8 @@ export default function AssetsPage() {
   const [loading, setLoading] = useState(true);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [details, setDetails] = useState<Record<number, Transaction[]>>({});
-  const [txTotals, setTxTotals] = useState<Record<number, number>>({});
   const [txPages, setTxPages] = useState<Record<number, number>>({});
-  const [txLimit] = useState(20);
+  const txLimit = 20;
   const [editing, setEditing] = useState(false);
   const [editForm, setEditForm] = useState({
     name: "",
@@ -124,29 +124,21 @@ export default function AssetsPage() {
       setEditLoading(false);
     }
   };
-  const loadDetails = async (assetId: number, page = 1) => {
-    const offset = (page - 1) * txLimit;
-    const res = await fetch(
-      `/api/transactions?assetId=${assetId}&limit=${txLimit}&offset=${offset}`,
-    );
+  // 余额列要按完整流水重放才准确，这里一次拉全量，前端分页
+  const loadDetails = async (assetId: number) => {
+    const res = await fetch(`/api/transactions?assetId=${assetId}&all=1`);
     const result = await res.json();
-    setDetails((d) => ({ ...d, [assetId]: result.data }));
-    setTxTotals((t) => ({ ...t, [assetId]: result.total }));
-    setTxPages((p) => ({ ...p, [assetId]: page }));
+    setDetails((d) => ({ ...d, [assetId]: result.data ?? [] }));
+    setTxPages((p) => ({ ...p, [assetId]: 1 }));
   };
 
   const handleSelect = (id: number) => {
     setSelectedId(id);
-    setDetails((d) => {
-      const nd = { ...d };
-      delete nd[id];
-      return nd;
-    });
     loadDetails(id);
   };
 
   const totalPages = (id: number) =>
-    Math.max(1, Math.ceil((txTotals[id] ?? 0) / txLimit));
+    Math.max(1, Math.ceil((details[id]?.length ?? 0) / txLimit));
   const currentPage = (id: number) => txPages[id] ?? 1;
 
   const txTypeLabel = (type: string) => {
@@ -162,77 +154,36 @@ export default function AssetsPage() {
   const selected = assets.find((a) => a.id === selectedId);
   const selectedTxs = selectedId ? (details[selectedId] ?? null) : null;
 
-  // Compute running balances for transaction table (oldest-first)
+  // 以流水为准：按时间从旧到新重放完整流水，得到每一笔之后的余额
   const txsWithBalance = (() => {
-    if (!selected || !selectedTxs || selectedTxs.length === 0) return [];
-    const sorted = [...selectedTxs].reverse(); // oldest first
-    // Walk backwards from current to get initial balance
-    let balance = selected.currentValue;
-    for (let i = sorted.length - 1; i >= 0; i--) {
-      const t = sorted[i];
-      if (t.type === "income" || t.type === "asset_income") {
-        balance -= t.amount;
-      } else if (t.type === "expense") {
-        balance += t.amount;
-      } else if (t.type === "reconciliation") {
-        balance -= t.amount; // delta: undo by subtracting
-      }
-      // asset_value_change: absolute set, cannot undo cleanly
-    }
-    // Walk forward computing balance after each transaction
-    const result: (Transaction & { balance: number })[] = [];
-    for (const t of sorted) {
-      if (t.type === "income" || t.type === "asset_income") {
-        balance += t.amount;
-      } else if (t.type === "expense") {
-        balance -= t.amount;
-      } else if (t.type === "asset_value_change") {
-        balance = t.amount;
-      } else if (t.type === "reconciliation") {
-        balance += t.amount;
-      } else if (t.type === "reconciliation") {
-        balance += t.amount; // delta
-      }
-      result.push({ ...t, balance });
-    }
-    return result.reverse(); // newest first for display
+    if (!selectedTxs || selectedTxs.length === 0) return [];
+    const oldestFirst = [...selectedTxs].reverse(); // oldest first
+    const balances = runningAssetBalances(oldestFirst);
+    const balanceById = new Map<number, number>();
+    oldestFirst.forEach((t, i) => balanceById.set(t.id, balances[i]));
+    return selectedTxs.map((t) => ({
+      ...t,
+      balance: balanceById.get(t.id) ?? 0,
+    }));
   })();
+
+  const currentPageNum = selectedId ? currentPage(selectedId) : 1;
+  const visibleTxs = txsWithBalance.slice(
+    (currentPageNum - 1) * txLimit,
+    currentPageNum * txLimit,
+  );
 
   // Monthly chart data: group transactions by month, show ending balance per month
   const chartData = (() => {
-    if (!selected || !selectedTxs || selectedTxs.length === 0) return [];
-    const sorted = [...selectedTxs].reverse(); // oldest first
-    // Compute initial balance
-    let balance = selected.currentValue;
-    for (let i = sorted.length - 1; i >= 0; i--) {
-      const t = sorted[i];
-      if (t.type === "income" || t.type === "asset_income") {
-        balance -= t.amount;
-      } else if (t.type === "expense") {
-        balance += t.amount;
-      }
-      // asset_value_change: absolute set, skip (forward walk will set correctly)
-    }
-    // Walk forward, track ending balance per month
+    if (!selectedTxs || selectedTxs.length === 0) return [];
+    const oldestFirst = [...selectedTxs].reverse(); // oldest first
+    const balances = runningAssetBalances(oldestFirst);
     const monthMap = new Map<string, number>();
-    // Add initial month
-    if (sorted.length > 0) {
-      const d = new Date(sorted[0].transactionDate);
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-      monthMap.set(key, balance);
-    }
-    for (const t of sorted) {
-      if (t.type === "income" || t.type === "asset_income") {
-        balance += t.amount;
-      } else if (t.type === "expense") {
-        balance -= t.amount;
-      } else if (t.type === "asset_value_change") {
-        balance = t.amount;
-      }
+    oldestFirst.forEach((t, i) => {
       const d = new Date(t.transactionDate);
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-      monthMap.set(key, balance);
-    }
+      monthMap.set(key, balances[i]);
+    });
     const points = Array.from(monthMap.entries())
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([month, value]) => {
@@ -385,7 +336,7 @@ export default function AssetsPage() {
                 <div className="px-4 py-3 border-b border-neutral-800">
                   <h3 className="text-sm font-medium text-white">交易明细</h3>
                 </div>
-                {txsWithBalance.length === 0 ? (
+                {visibleTxs.length === 0 ? (
                   <p className="text-center text-neutral-500 py-8 text-sm">
                     暂无交易记录
                   </p>
@@ -411,7 +362,7 @@ export default function AssetsPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {txsWithBalance.map((t) => (
+                      {visibleTxs.map((t) => (
                         <tr
                           key={t.id}
                           className="border-b border-neutral-800/50"
@@ -453,12 +404,18 @@ export default function AssetsPage() {
                 {selected && totalPages(selected.id) > 1 && (
                   <div className="flex items-center justify-between px-4 py-3 border-t border-neutral-800">
                     <span className="text-xs text-neutral-500">
-                      共 {txTotals[selected.id] ?? 0} 条
+                      共 {details[selected.id]?.length ?? 0} 条
                     </span>
                     <div className="flex items-center gap-2">
                       <button
                         onClick={() =>
-                          loadDetails(selected.id, currentPage(selected.id) - 1)
+                          setTxPages((p) => ({
+                            ...p,
+                            [selected.id]: Math.max(
+                              1,
+                              currentPage(selected.id) - 1,
+                            ),
+                          }))
                         }
                         disabled={currentPage(selected.id) <= 1}
                         className="text-xs text-neutral-400 hover:text-white disabled:opacity-30 px-2 py-1 rounded transition-colors"
@@ -470,7 +427,13 @@ export default function AssetsPage() {
                       </span>
                       <button
                         onClick={() =>
-                          loadDetails(selected.id, currentPage(selected.id) + 1)
+                          setTxPages((p) => ({
+                            ...p,
+                            [selected.id]: Math.min(
+                              totalPages(selected.id),
+                              currentPage(selected.id) + 1,
+                            ),
+                          }))
                         }
                         disabled={
                           currentPage(selected.id) >= totalPages(selected.id)

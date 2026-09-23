@@ -39,13 +39,15 @@ export async function GET(request: Request) {
 
     const limitNum = limit ? Number(limit) : 50;
     const offsetNum = offset ? Number(offset) : 0;
+    // all=1 返回该条件下的全部流水（账户明细需要完整流水才能算对余额）
+    const fetchAll = searchParams.get("all") === "1";
 
     const [countResult] = await db
       .select({ count: sql<number>`count(*)` })
       .from(transactions)
       .where(and(...conditions));
 
-    const result = await db
+    const query = db
       .select({
         ...getTableColumns(transactions),
         assetName: assets.name,
@@ -55,9 +57,11 @@ export async function GET(request: Request) {
       .leftJoin(assets, eq(assets.id, transactions.assetId))
       .leftJoin(liabilities, eq(liabilities.id, transactions.liabilityId))
       .where(and(...conditions))
-      .orderBy(desc(transactions.transactionDate))
-      .limit(limitNum)
-      .offset(offsetNum);
+      .orderBy(desc(transactions.transactionDate), desc(transactions.id));
+
+    const result = fetchAll
+      ? await query
+      : await query.limit(limitNum).offset(offsetNum);
 
     return NextResponse.json({ data: result, total: countResult.count });
   } catch (e) {

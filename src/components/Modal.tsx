@@ -4,7 +4,7 @@ import { useEffect, type ReactNode } from "react";
 
 /**
  * 通用弹窗：遮罩 + 面板 + 标题。
- * 点击遮罩或按 ESC 关闭，面板本身不高亮背景之外的内容。
+ * 只按 ESC 或点右上角关闭；点击窗体外的遮罩不会关闭，避免误触丢失填写内容。
  */
 export function Modal({
   open,
@@ -31,12 +31,7 @@ export function Modal({
   if (!open) return null;
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
-    >
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
       <div
         className={`bg-neutral-900 border border-neutral-800 rounded-xl p-6 w-full ${maxWidth} max-h-[85vh] overflow-y-auto`}
       >

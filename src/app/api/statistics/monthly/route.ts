@@ -137,15 +137,19 @@ async function calculateMonthlyStats(month: string, userId: number) {
 
   const netWorth = totalAssets - totalLiabilities;
 
-  const monthlyAssetIncome = allAssets.reduce(
-    (sum, a) => sum + (a.monthlyIncome ?? 0),
-    0
-  );
+  const monthlyAssetIncome = allAssets.reduce((sum, a) => {
+    // 存款/投资按年化收益率计息（百分数，需除以 100）
+    if (a.type === "deposit" || a.type === "investment") {
+      return sum + (a.currentValue * (a.annualYield ?? 0)) / 100 / 12;
+    }
+    return sum + (a.monthlyIncome ?? 0);
+  }, 0);
   const monthlyLiabilityPayment = allLiabilities.reduce((sum, l) => {
     const method = l.repaymentMethod || "equal_installment";
     if (method === "equal_installment") return sum + l.monthlyPayment;
     if (method === "interest_only") {
-      return sum + (l.remainingPrincipal * l.annualRate) / 12;
+      // 年利率是百分数，需除以 100
+      return sum + (l.remainingPrincipal * l.annualRate) / 100 / 12;
     }
     // lump_sum: no regular monthly payment
     return sum;

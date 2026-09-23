@@ -44,6 +44,20 @@ export async function GET(request: Request) {
       .from(liabilities)
       .where(and(eq(liabilities.isActive, true), eq(liabilities.userId, user.id)));
 
+    const isYieldAsset = (a: { type: string }) =>
+      a.type === "deposit" || a.type === "investment";
+
+    // 年化收益率是百分数（如 3.5 表示 3.5%），需除以 100
+    const assetIncomeOf = (a: {
+      type: string;
+      value: number;
+      annualYield: number;
+      monthlyIncome: number;
+    }) =>
+      isYieldAsset(a)
+        ? (a.value * a.annualYield) / 100 / 12
+        : a.monthlyIncome;
+
     const assetState = allAssets.map((a) => ({
       id: a.id,
       name: a.name,
@@ -74,6 +88,10 @@ export async function GET(request: Request) {
       };
     });
 
+    // 累计净结余：现金收入（工资/租金）减去全部支出后的余钱。
+    // 单列一项，保证净值只随真实现金结余 + 还本增长，而不是把工资直接炒成资产市值。
+    let cashSurplus = 0;
+
     for (let i = 0; i < months; i++) {
       const targetMonth =
         currentMonth + i > 12
@@ -85,17 +103,11 @@ export async function GET(request: Request) {
           : currentYear;
       const monthStr = `${targetYear}-${String(targetMonth).padStart(2, "0")}`;
 
-      const assetDetails = assetState.map((a) => {
-        let income = a.monthlyIncome;
-        if (a.type === "deposit" || a.type === "investment") {
-          income = (a.value * a.annualYield) / 12;
-        }
-        return {
-          name: a.name,
-          value: a.value,
-          income,
-        };
-      });
+      const assetDetails = assetState.map((a) => ({
+        name: a.name,
+        value: a.value,
+        income: assetIncomeOf(a),
+      }));
 
       const liabilityDetails = liabilityState.map((l) => {
         // 年利率是百分比值（如 3.5 表示 3.5%），需除以 100
@@ -135,7 +147,14 @@ export async function GET(request: Request) {
         };
       });
 
-      const totalAssets = assetState.reduce((sum, a) => sum + a.value, 0);
+      // 现金收入 = 工资/租金等；存款/投资的收益是复利留在资产里的，不算现金
+      const cashIncome = assetState.reduce(
+        (sum, a) => sum + (isYieldAsset(a) ? 0 : a.monthlyIncome),
+        0
+      );
+
+      const totalAssets =
+        assetState.reduce((sum, a) => sum + a.value, 0) + cashSurplus;
       const totalLiabilities = liabilityState.reduce(
         (sum, l) => sum + l.remainingPrincipal,
         0
@@ -157,21 +176,24 @@ export async function GET(request: Request) {
         cashFlow: assetIncome - liabilityPayment,
         assetIncome,
         liabilityPayment,
-        assetDetails,
+        assetDetails: [
+          ...assetDetails,
+          { name: "现金结余", value: cashSurplus, income: 0 },
+        ],
         liabilityDetails,
       });
 
-      // Update asset state for next month — 所有月收入累加到资产价值中
+      // Update asset state for next month — 只有存款/投资按年化收益复利，
+      // 工资/租金是现金流，不再直接加进资产市值
       for (let j = 0; j < assetState.length; j++) {
         const a = assetState[j];
-        let income = a.monthlyIncome;
-        if (a.type === "deposit" || a.type === "investment") {
-          income = (a.value * a.annualYield) / 12;
-        }
-        if (income > 0) {
-          assetState[j] = { ...a, value: a.value + income };
+        if (isYieldAsset(a)) {
+          assetState[j] = { ...a, value: a.value + assetIncomeOf(a) };
         }
       }
+
+      // 现金结余 = 本月现金收入 − 本月全部支出（含利息、生活费、还本）
+      cashSurplus += cashIncome - liabilityPayment;
 
       // Update liability state for next month
       for (let j = 0; j < liabilityState.length; j++) {

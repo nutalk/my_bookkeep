@@ -905,6 +905,19 @@ function PredictionTab() {
             </div>
           </div>
 
+          <p className="text-xs text-neutral-500 leading-relaxed">
+            净值月增 ≈ 月净现金流 + 本金归还，当前约{" "}
+            <span className="text-blue-400 font-medium">
+              {formatMoney(
+                (prediction.summary.endNetWorth -
+                  prediction.summary.startNetWorth) /
+                  predictionMonths,
+              )}
+              /月
+            </span>
+            。还本只是「现金 → 还债」，不影响净值，所以净值增速会高于现金流；工资/租金算现金流，不再直接计入资产市值。
+          </p>
+
           <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-5">
             <h4 className="text-sm font-medium text-white mb-3">资产 / 负债 / 净值趋势</h4>
             <LineChart

@@ -54,6 +54,36 @@ export function applyLiabilityTx(balance: number, t: LedgerTx): number {
   return balance + liabilityDelta(t);
 }
 
+/**
+ * 交易对账户余额的实际影响（正数 = 余额增加），用于展示金额列的正负号。
+ *
+ * 资产与负债的交易类型互不重叠，可以共用一个函数：
+ * - income / asset_income / reconciliation / liability_principal_change → +amount
+ * - expense → -amount
+ * - liability_repayment → 本金部分取负
+ * - asset_value_change 是「绝对值设定」，只看这条记录无法得知变动量，返回 null
+ */
+export function balanceEffect(t: LedgerTx): number | null {
+  switch (t.type) {
+    case "income":
+    case "asset_income":
+    case "reconciliation":
+    case "liability_principal_change":
+      return t.amount;
+    case "expense":
+      return -t.amount;
+    case "liability_repayment": {
+      const principal =
+        (t.principalPart ?? 0) > 0 ? (t.principalPart as number) : t.amount;
+      return -principal;
+    }
+    case "asset_value_change":
+      return null;
+    default:
+      return t.amount;
+  }
+}
+
 export function applyAssetTx(balance: number, t: LedgerTx): number {
   const delta = assetDelta(t);
   return delta === null ? t.amount : balance + delta;

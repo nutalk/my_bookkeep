@@ -315,16 +315,20 @@ export default function LiabilitiesPage() {
   const selected = liabilities.find((l) => l.id === selectedId);
   const selectedTxs = selectedId ? details[selectedId] ?? null : null;
 
-  // 以流水为准：按时间从旧到新重放完整流水，得到每一笔之后的余额
+  // 以流水为准：按时间从旧到新重放完整流水，得到每一笔之后的余额与这笔造成的变动
   const txsWithBalance = (() => {
     if (!selectedTxs || selectedTxs.length === 0) return [];
     const oldestFirst = [...selectedTxs].reverse();
     const balances = runningLiabilityBalances(oldestFirst);
-    const balanceById = new Map<number, number>();
-    oldestFirst.forEach((t, i) => balanceById.set(t.id, balances[i]));
+    const rows = new Map<number, { balance: number; delta: number }>();
+    oldestFirst.forEach((t, i) => {
+      const prev = i === 0 ? 0 : balances[i - 1];
+      rows.set(t.id, { balance: balances[i], delta: balances[i] - prev });
+    });
     return selectedTxs.map((t) => ({
       ...t,
-      balance: balanceById.get(t.id) ?? 0,
+      balance: rows.get(t.id)?.balance ?? 0,
+      delta: rows.get(t.id)?.delta ?? 0,
     }));
   })();
 
@@ -661,15 +665,13 @@ export default function LiabilitiesPage() {
                             </td>
                             <td
                               className={`px-4 py-2 text-xs text-right font-medium ${
-                                t.type === "liability_principal_change"
+                                t.delta >= 0
                                   ? "text-orange-400"
                                   : "text-red-400"
                               }`}
                             >
-                              {t.type === "liability_principal_change"
-                                ? "+"
-                                : "-"}
-                              {formatMoney(Math.abs(t.amount))}
+                              {t.delta >= 0 ? "+" : "-"}
+                              {formatMoney(Math.abs(t.delta))}
                             </td>
                             <td className="px-4 py-2 text-xs text-right text-white font-medium">
                               {formatMoney(t.balance)}

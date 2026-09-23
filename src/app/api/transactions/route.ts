@@ -3,6 +3,7 @@ import { db } from "@/db";
 import { transactions, assets, liabilities } from "@/db/schema";
 import { eq, and, gte, lte, desc, sql, getTableColumns } from "drizzle-orm";
 import { requireUser } from "@/lib/auth";
+import { reconcileUserBalances } from "@/db/reconcile";
 
 export async function GET(request: Request) {
   try {
@@ -213,6 +214,10 @@ export async function PUT(request: Request) {
     if (!updated) {
       return NextResponse.json({ error: "账目不存在" }, { status: 404 });
     }
+
+    // 以流水为准：改动明细后按流水重算账户余额，否则信息卡与明细表会对不上
+    await reconcileUserBalances(user.id);
+
     return NextResponse.json(updated);
   } catch (e) {
     if ((e as Error).message === "UNAUTHORIZED") {
@@ -233,6 +238,10 @@ export async function DELETE(request: Request) {
     await db
       .delete(transactions)
       .where(and(eq(transactions.id, id), eq(transactions.userId, user.id)));
+
+    // 以流水为准：删除明细后按流水重算账户余额
+    await reconcileUserBalances(user.id);
+
     return NextResponse.json({ success: true });
   } catch (e) {
     if ((e as Error).message === "UNAUTHORIZED") {

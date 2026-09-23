@@ -469,22 +469,31 @@ export function LiabilityForm({ onSuccess }: { onSuccess?: () => void }) {
   );
 }
 
-export function TransactionForm({ onSuccess }: { onSuccess?: () => void }) {
+export function TransactionForm({
+  onSuccess,
+  preset,
+}: {
+  onSuccess?: () => void;
+  /** 预选账户：直接在该账户下记账，跳过「选择账户」步骤 */
+  preset?: { kind: "asset" | "liability"; id: number; name: string };
+}) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
-  const [step, setStep] = useState<1 | 2>(1);
-  const [accountType, setAccountType] = useState<"asset" | "liability">("asset");
+  const [step, setStep] = useState<1 | 2>(preset ? 2 : 1);
+  const [accountType, setAccountType] = useState<"asset" | "liability">(
+    preset?.kind ?? "asset",
+  );
   const [assets, setAssets] = useState<{ id: number; name: string }[]>([]);
   const [liabilities, setLiabilities] = useState<{ id: number; name: string }[]>([]);
   const [form, setForm] = useState({
-    type: "income",
+    type: preset?.kind === "liability" ? "liability_repayment" : "income",
     amount: "",
     principalPart: "",
     interestPart: "",
     description: "",
     transactionDate: new Date().toISOString().slice(0, 10),
-    assetId: "",
-    liabilityId: "",
+    assetId: preset?.kind === "asset" ? String(preset.id) : "",
+    liabilityId: preset?.kind === "liability" ? String(preset.id) : "",
     note: "",
   });
 
@@ -552,11 +561,11 @@ export function TransactionForm({ onSuccess }: { onSuccess?: () => void }) {
           interestPart: "",
           description: "",
           transactionDate: new Date().toISOString().slice(0, 10),
-          assetId: "",
-          liabilityId: "",
+          assetId: preset?.kind === "asset" ? String(preset.id) : "",
+          liabilityId: preset?.kind === "liability" ? String(preset.id) : "",
           note: "",
         });
-        setStep(1);
+        if (!preset) setStep(1);
         onSuccess?.();
         router.refresh();
       }
@@ -577,52 +586,63 @@ export function TransactionForm({ onSuccess }: { onSuccess?: () => void }) {
 
   return (
     <div className="space-y-4">
-      {/* Step 1: Select account type and item */}
-      <div className="space-y-3">
-        <label className="block text-sm text-neutral-400">选择账户类型</label>
-        <div className="grid grid-cols-2 gap-3">
-          <button
-            type="button"
-            onClick={() => handleAccountTypeChange("asset")}
-            className={`rounded-lg px-4 py-3 text-sm font-medium transition-colors border ${
-              accountType === "asset"
-                ? "bg-green-900/40 border-green-700 text-green-400"
-                : "bg-neutral-800 border-neutral-700 text-neutral-400 hover:border-neutral-600"
-            }`}
-          >
-            资产
-          </button>
-          <button
-            type="button"
-            onClick={() => handleAccountTypeChange("liability")}
-            className={`rounded-lg px-4 py-3 text-sm font-medium transition-colors border ${
-              accountType === "liability"
-                ? "bg-red-900/40 border-red-700 text-red-400"
-                : "bg-neutral-800 border-neutral-700 text-neutral-400 hover:border-neutral-600"
-            }`}
-          >
-            负债
-          </button>
+      {preset ? (
+        <div>
+          <label className="block text-sm text-neutral-400 mb-1">账户</label>
+          <p className="w-full bg-neutral-800/60 border border-neutral-700 rounded-lg px-3 py-2.5 text-white text-sm">
+            {preset.name}
+          </p>
         </div>
-      </div>
+      ) : (
+        <>
+          {/* Step 1: Select account type and item */}
+          <div className="space-y-3">
+            <label className="block text-sm text-neutral-400">选择账户类型</label>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => handleAccountTypeChange("asset")}
+                className={`rounded-lg px-4 py-3 text-sm font-medium transition-colors border ${
+                  accountType === "asset"
+                    ? "bg-green-900/40 border-green-700 text-green-400"
+                    : "bg-neutral-800 border-neutral-700 text-neutral-400 hover:border-neutral-600"
+                }`}
+              >
+                资产
+              </button>
+              <button
+                type="button"
+                onClick={() => handleAccountTypeChange("liability")}
+                className={`rounded-lg px-4 py-3 text-sm font-medium transition-colors border ${
+                  accountType === "liability"
+                    ? "bg-red-900/40 border-red-700 text-red-400"
+                    : "bg-neutral-800 border-neutral-700 text-neutral-400 hover:border-neutral-600"
+                }`}
+              >
+                负债
+              </button>
+            </div>
+          </div>
 
-      <div>
-        <label className="block text-sm text-neutral-400 mb-1">
-          选择{accountType === "asset" ? "资产" : "负债"}账户
-        </label>
-        <select
-          value={accountType === "asset" ? form.assetId : form.liabilityId}
-          onChange={(e) => handleItemSelect(e.target.value)}
-          className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2.5 text-white text-sm focus:outline-none focus:border-blue-500"
-        >
-          <option value="">请选择...</option>
-          {(accountType === "asset" ? assets : liabilities).map((item) => (
-            <option key={item.id} value={item.id}>
-              {item.name}
-            </option>
-          ))}
-        </select>
-      </div>
+          <div>
+            <label className="block text-sm text-neutral-400 mb-1">
+              选择{accountType === "asset" ? "资产" : "负债"}账户
+            </label>
+            <select
+              value={accountType === "asset" ? form.assetId : form.liabilityId}
+              onChange={(e) => handleItemSelect(e.target.value)}
+              className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2.5 text-white text-sm focus:outline-none focus:border-blue-500"
+            >
+              <option value="">请选择...</option>
+              {(accountType === "asset" ? assets : liabilities).map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        </>
+      )}
 
       {/* Step 2: Transaction details (only show after item selected) */}
       {step === 2 && (form.assetId || form.liabilityId) && (

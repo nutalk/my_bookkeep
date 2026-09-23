@@ -27,6 +27,16 @@ export function getAssetTypeLabel(type: string): string {
   return map[type] ?? type;
 }
 
+export function getIncomeFrequencyLabel(frequency: string): string {
+  const map: Record<string, string> = {
+    monthly: "每月",
+    quarterly: "每季",
+    yearly: "每年",
+    one_time: "一次性",
+  };
+  return map[frequency] ?? frequency;
+}
+
 export function getLiabilityTypeLabel(type: string): string {
   const map: Record<string, string> = {
     mortgage: "房贷",
